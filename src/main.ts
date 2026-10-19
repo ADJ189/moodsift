@@ -7,6 +7,7 @@ import './styles/palettes.css';
 import './styles/primitives.css';
 import './styles/header.css';
 import './styles/landing.css';
+import './styles/landing-carousel.css';
 import './styles/quiz.css';
 import './styles/rating.css';
 import './styles/results.css';
