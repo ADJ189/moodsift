@@ -212,7 +212,9 @@ test.describe('landing gallery — no TMDB credential', () => {
   test('shows the static sample, makes no TMDB request, keeps the warning', async ({ page }) => {
     const requests: string[] = [];
     page.on('request', (r) => {
-      if (r.url().includes('themoviedb.org')) requests.push(r.url());
+      const url = r.url();
+      const host = new URL(url).hostname;
+      if (host === 'themoviedb.org' || host.endsWith('.themoviedb.org')) requests.push(url);
     });
     await page.goto('/');
     await expect(page.locator('.hero-visual')).toBeAttached();
