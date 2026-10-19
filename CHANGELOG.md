@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented here.
 
+## [1.12.0] — Landing gallery
+
+### Added
+- **Popular-titles gallery on the landing page.** With a TMDB credential, the hero's static sample card is replaced by a centre-focused poster deck of eight currently popular movies and series (four of each, interleaved, ordered by TMDB popularity). It is clearly labelled *Popular picks · Not personalised* — nothing is scored against your taste, and no match percentage is shown.
+  - **Gestures:** drag or swipe the deck (a card tracks the pointer directly, then settles with a small spring); a drag past ~22% of the gallery width — or a quick flick — moves exactly one title. Vertical movement stays a normal page scroll. Tap a side poster to bring it forward; tap the centre poster or *Explore title* to open it in the existing title-search flow.
+  - **Controls:** previous/next buttons, a dot pager (a labelled button per title), `←` `→` `Home` `End` while focus is inside, and a polite screen-reader announcement ("3 of 8: Title, year, movie"). Inactive posters are hidden from assistive technology and are never tab stops.
+  - **Ambient backdrop:** a blurred, theme-masked backdrop cross-fades behind the deck (poster art as the fallback; plain gradient if neither loads) and never blocks the poster change.
+  - **Idle auto-advance** every ~7 s, with a visible Pause/Resume button. It stops for hover, keyboard focus, drag, a hidden tab, an off-screen gallery, Pause, and reduced motion, and waits ≥ 8 s after any manual interaction.
+  - **Motion:** follows Appearance → Motion *and* `prefers-reduced-motion`, live. Full = tilt, parallax and spring; Subtle = shorter and gentler; Off = no tilt, parallax, rebound or autoplay, with instant changes.
+  - **Cost:** one `/discover` request per media type (two in total, through the existing cached/retrying TMDB client), cancelled if you leave the page; a skeleton with the final footprint reserves the space so nothing shifts.
+  - **Fallbacks:** no TMDB key → no request and the static sample card, exactly as before; request failure or nothing usable → the sample card; a single title → a static card with no dead controls; a missing poster → an initial-letter tile.
+- `getLandingShowcase()` in `src/lib/tmdb.ts`; `chevronRight`, `play` and `pause` icons.
+- `tests/landing-carousel.spec.ts` (data/loading, fallbacks, navigation, keyboard, gestures, touch, motion preferences, autoplay with a paused fake clock, cleanup/cancellation, and a layout matrix from 1440 px to 320 px). `playwright.config.ts` now also serves a second, key-less build so the "no credential → no request" case is tested for real.
+
+### Fixed
+- A mostly-vertical mouse drag that ended over the same poster could still count as a click; any drag, in any direction, now suppresses the click (a plain tap still works).
+
+### Known, unchanged
+- At a 320 px viewport the page header's action buttons extend ~23 px past the viewport edge (pre-existing; not caused by the gallery).
+
 ## [1.11.0] — Moodsift: redesign + rebranding
 
 CineMatch is now **Moodsift** (the old name was too common to be findable). Live at <https://moodsift.adj189.workers.dev/>.

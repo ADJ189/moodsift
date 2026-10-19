@@ -6,6 +6,7 @@ dist/
 *.local
 .wrangler/
 dist-e2e/
+dist-e2e-nokey/
 test-results/
 playwright-report/
 tests/**/*-snapshots/

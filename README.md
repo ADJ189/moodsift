@@ -39,6 +39,10 @@ Seven quick questions, a few titles you already know, and a live pull from thous
 - **Precise / Grouped toggle.** Grouped is a wide, forgiving pool (default). Precise holds results to a 68%+ match floor and returns fewer, tighter picks.
 - **Letterboxd import.** Drop in a `ratings.csv` export to skip manual re-rating; the latest import replaces the previous imported library, and ratings you gave in the app are never touched.
 
+### First impression — the landing gallery
+
+- **A real look at what's popular, honestly labelled.** With a TMDB key, the landing page shows a swipeable poster gallery of eight popular movies and series — *popular, not personalised*, and it says so. Drag, swipe, tap, use the arrow buttons or the keyboard; *Explore title* opens the title in the search flow. It auto-advances gently (with a Pause button), respects Reduced Motion, costs two TMDB requests, and falls back to the static sample card with no key or if TMDB is unreachable.
+
 ### Explore — search, cast and where to watch
 
 - **Search a title, see what's actually similar** — or search an actor, director, or other crew and see their best-known work. Results come from TMDB's own recommendation/credit data rather than being re-scored against your quiz answers, since taste isn't the same every session and a title's own data doesn't depend on who's asking.
@@ -190,6 +194,7 @@ src/
     ai-policy.ts     pure policy: model catalogue, eligibility, prompt and output checks
     ai-settings.ts   the AI engine mode (own storage key, independent of appearance)
   screens/           landing, quiz, rating, results, search — one module each, lazily loaded except landing
+  components/        landing-carousel.ts — the landing page's popular-titles gallery (Pointer Events + CSS transforms)
   data/              quiz questions, taste-calibration seed titles
 worker/
   index.ts           Cloudflare Worker entry — serves dist/ via the ASSETS binding, handles
