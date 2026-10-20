@@ -80,9 +80,20 @@ Seven quick questions, a few titles you already know, and a live pull from thous
 
 ## Screenshots
 
-| Landing | Results |
-|---|---|
-| _Add a screenshot of the landing screen here_ | _Add a screenshot of the results grid here_ |
+<p align="center">
+  <img src="docs/screenshots/landing.webp" alt="Moodsift landing page with the popular-picks gallery" width="900" />
+  <br /><sub><b>Landing</b> — the quiz entry point and swipeable popular-picks gallery</sub>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/results.webp" alt="Moodsift results page showing a top pick and strong matches" width="900" />
+  <br /><sub><b>Results</b> — your top pick, grouped strong matches, and per-title match scores</sub>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/search.webp" alt="Moodsift title search with movie, TV and people filters" width="900" />
+  <br /><sub><b>Search</b> — find a title you love and see what's actually similar</sub>
+</p>
 
 ---
 
