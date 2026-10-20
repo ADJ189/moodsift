@@ -483,9 +483,9 @@ test.describe('landing gallery — autoplay and cleanup', () => {
 
   test('advances after ~7s when idle, and not before', async ({ page }) => {
     await page.clock.runFor(6000);
-    await expectTitle(page, 'Movie 1');
+    await expect.poll(() => title(page).textContent()).toBe('Movie 1');
     await page.clock.runFor(1500);
-    await expectTitle(page, 'Show 1');
+    await expect.poll(() => title(page).textContent()).toBe('Show 1');
   });
 
   test('waits at least 8s after a manual interaction', async ({ page }) => {
@@ -494,9 +494,9 @@ test.describe('landing gallery — autoplay and cleanup', () => {
     await page.evaluate(() => (document.activeElement as HTMLElement).blur()); // focus leaves
     await page.mouse.move(2, 2); // hover leaves
     await page.clock.runFor(7500);
-    await expectTitle(page, 'Show 1');
+    await expect.poll(() => title(page).textContent()).toBe('Show 1');
     await page.clock.runFor(1500);
-    await expectTitle(page, 'Movie 2');
+    await expect.poll(() => title(page).textContent()).toBe('Movie 2');
   });
 
   test('pauses for hover, focus, an explicit Pause, a hidden tab and an off-screen gallery', async ({ page }) => {
