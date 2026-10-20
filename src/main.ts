@@ -16,6 +16,7 @@ import './styles/search.css';
 import './styles/credits.css';
 import './styles/settings.css';
 import './styles/effects.css';
+import './styles/cards.css';
 
 import { renderLanding } from './screens/landing';
 import { store } from './lib/store';
