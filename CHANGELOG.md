@@ -2,6 +2,29 @@
 
 All notable changes to this project are documented here.
 
+## [1.13.0] — Visual direction: card types, design styles, search types, Settings workspace
+
+Implements `docs/visual-redesign-spec.md`, adapted to the 1.12 codebase. Three new, independent, saved choices — **card type**, **design style** and **search type** — change presentation only. They never change what is searched, recommended, scored or stored, and they never override Motion, Reduced transparency, High contrast, text size or the user's own layout settings.
+
+### Added
+- **Card type** (`cardType`): *Interactive* (default — quick actions and a short lift on hover or keyboard focus, always visible on touch), *Poster gallery*, *Editorial* (synopsis + a labelled Details button) and *Compact*. One shared card markup; `data-card-type` + `styles/cards.css` decide what shows. Cards now carry a type/genre line, a TMDB rating **only when TMDB has votes**, a bookmark and an Info quick action, and a text-labelled match badge ("94% match").
+- **Design style** (`designStyle`): *Cinematic* (default), *Minimal*, *Film journal*, *Glass*, *Neon noir*. Pure decoration through `--ds-*` tokens; Glass is solid under Reduced transparency, High contrast and unsupported `backdrop-filter`; Neon noir lights only the hovered or focused card.
+- **Search type** (`searchType`): *Grouped* (default), *Compact*, *Expanded* (with a preview pane) and *Full page* (inline results with All / Movies / TV Shows / People filters showing real counts). Search is now a proper ARIA combobox: `aria-activedescendant`, ↑/↓ wrap, Enter picks, Escape closes and keeps the typed text, "See all results" opens the full view. Loading skeletons, empty and error (with Retry) states; one-character queries make no request; debounce 200 ms; changing the type redraws from cached results with **no new request**. People show an optional "Known for" line taken from the same TMDB response.
+- **Settings workspace** replacing the four-tab drawer: *Overview* (summaries, live mini-previews, four starter presets), *Cards & layout*, *Search*, *Theme*, *Readability*, *Motion & performance*, *AI engine*, *Advanced*. Visual option tiles with fictional-data previews; saved looks, custom accent, advanced effects and model details sit in disclosures; export/import is revealed on demand; reset-all lives in Advanced. On tablets and phones the rail becomes a scrolling category row and the panel a full-height sheet.
+- **Starter presets** — Cinematic, Minimal, Film journal, Performance — write ordinary preferences (undoable, never touching text size, contrast, transparency, AI mode or your motion profile).
+- Section reset for *Search*; *Theme* reset now includes the design style; *Cards & layout* reset includes the card type.
+- `tests/design-options.spec.ts`, new axe scans for every Settings section, search type, card type and design style, and `mockSearchResults()` / `openSettings()` fixtures.
+
+### Changed
+- The dialog is titled **Settings**; the header button keeps its "Appearance settings" label. `openAppearancePanel()` accepts the new section ids and still accepts the old tab names.
+- The poster-wide click target on cards is no longer a tab stop; the title link and the Details/Info action cover keyboard and screen-reader use.
+- Card entrance stagger is 24 ms per card, capped after ten, and no longer pins the card's transform, so hover/focus lift actually applies.
+- Existing tests were updated for the new Settings structure (tab names, disclosures, Advanced-section reset/export/import) and to scope `combobox` lookups to the command menu now that search is a combobox.
+
+### Notes
+- *Minimal* removes decorative glow and shadow; pointer tilt remains governed by **Motion & performance → Poster tilt** (the Minimal and Performance presets turn it off), so an explicit motion choice is never silently overridden.
+- The concept image referenced by the spec (`docs/assets/moodsift-visual-redesign-reference.png`) was not part of the supplied archive.
+
 ## [1.12.0] — Landing gallery
 
 ### Added
