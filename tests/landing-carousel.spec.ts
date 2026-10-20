@@ -533,11 +533,27 @@ test.describe('landing gallery — autoplay and cleanup', () => {
       Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
       document.dispatchEvent(new Event('visibilitychange'));
     });
-    // scrolled out of view
-    await page.evaluate(() => {
-      (document.querySelector('.lc') as HTMLElement).style.marginTop = '3000px';
-      window.scrollTo(0, 0);
-    });
+    // scrolled out of view. IntersectionObserver reports on the next rendered
+    // frame, not synchronously, and the fake clock can run the 7 s timer before
+    // the gallery has been told it left the screen (this raced on slow mobile
+    // runners). So wait for a second observer on the same element to report
+    // "not intersecting": observers on one target are notified in the same
+    // batch, in creation order, so by then the gallery's own observer has run.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          const lc = document.querySelector('.lc') as HTMLElement;
+          lc.style.marginTop = '3000px';
+          window.scrollTo(0, 0);
+          const probe = new IntersectionObserver((entries) => {
+            if (entries[entries.length - 1]?.isIntersecting === false) {
+              probe.disconnect();
+              resolve();
+            }
+          });
+          probe.observe(lc);
+        })
+    );
     await page.clock.runFor(30_000);
     await expectTitle(page, 'Movie 1');
   });
