@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## [Unreleased]
+## [Bug Fix For v1.13.0]
 
 ### Fixed
 - Keep result card content visible while pointer effects are active in the Minimal design style.
