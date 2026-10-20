@@ -12,6 +12,8 @@
 // detail.
 
 import { buildPosterImage, el, mount } from '../lib/dom';
+import { getPreferences, subscribeAppearance } from '../lib/appearance';
+import { buildActionGroup, buildDetailsButton, buildKindLine, buildQuickButton, buildRatingLine, hasRating } from '../lib/card-ui';
 import { ICON } from '../lib/icons';
 import { subscribeAiMode } from '../lib/ai-settings';
 import { describeLlm, enableLocalAi, generateExplanation, getLlmStatus, subscribeLlm } from '../lib/llm';
@@ -23,9 +25,11 @@ import { mountProviders } from '../lib/providers-ui';
 import { store } from '../lib/store';
 import { backdropUrl, getCredits, getPersonBestWork, getPersonDetails, getSimilarTitles, getTitleDetails, personImageUrl, posterUrl, searchMulti, searchPeople, tmdbDetailsUrl, TmdbUnavailableError } from '../lib/tmdb';
 import { buildCreditsBlock } from '../lib/credits-ui';
-import type { CatalogItem, RatingValue, ScoredItem } from '../lib/types';
+import type { CatalogItem, PersonSummary, RatingValue, ScoredItem } from '../lib/types';
 
-const SEARCH_DEBOUNCE_MS = 350;
+const SEARCH_DEBOUNCE_MS = 200;
+const MIN_QUERY = 2;
+const LISTBOX_ID = 'search-suggestions';
 const AI_LIMIT = 8;
 
 /** Turns a plain CatalogItem into the ScoredItem shape the shared card
@@ -44,12 +48,19 @@ function toSimilarItem(item: CatalogItem, source: CatalogItem): ScoredItem {
   return { ...item, matchPct: overlapPct, rankPct: overlapPct, score: overlapPct, fit: 'good', reasons, matchedTags: shared.slice(0, 4) };
 }
 
+/** A title found by name, shaped for the shared card. There is no quiz match
+ * and no similarity here, so both stay zero and the card shows neither. */
+function toSearchItem(item: CatalogItem): ScoredItem {
+  return { ...item, matchPct: 0, rankPct: 0, score: 0, fit: 'good', reasons: [], matchedTags: [] };
+}
+
 export function renderSearch(root: HTMLElement): () => void {
   let cancelled = false;
   let unsubscribePending: (() => void) | null = null;
   let debounceTimer: number | null = null;
   let searchToken = 0;
   let searchAbort: AbortController | null = null;
+  let removeOutsideListener: (() => void) | null = null;
   // Bumped by every title/person selection; an async load only paints if
   // it is still the latest one, so a slow older response can't overwrite
   // the page for a newer choice.
@@ -75,26 +86,62 @@ export function renderSearch(root: HTMLElement): () => void {
 
   const screen = el('div', { class: 'screen search-screen' });
   mount(root, screen);
+
+  // ── Search presentation state ───────────────────────────────────────
+  // One shared query/result layer; the four search types only change how the
+  // same results are presented. A type change redraws from this cache and
+  // never issues a request.
+  type Phase = 'idle' | 'loading' | 'ready' | 'error';
+  type Category = 'all' | 'movie' | 'tv' | 'people';
+  interface Option {
+    kind: 'title' | 'person';
+    title?: CatalogItem;
+    person?: PersonSummary;
+    node: HTMLElement;
+  }
+  let phase: Phase = 'idle';
+  let currentQuery = '';
+  let titles: CatalogItem[] = [];
+  let people: PersonSummary[] = [];
+  let panelOpen = false;
+  let fullOpen = false;
+  let category: Category = 'all';
+  let activeIdx = -1;
+  let options: Option[] = [];
+  let lastType = getPreferences().searchType;
+  // Set by draw(); lets a Settings change redraw the presentation only.
+  let redrawSearch: (() => void) | null = null;
+  const unsubscribeAppearance = subscribeAppearance((p) => {
+    if (p.searchType === lastType) return;
+    lastType = p.searchType;
+    redrawSearch?.();
+  });
+
   draw();
 
   function draw() {
     const input = el('input', {
       class: 'search-input',
       type: 'search',
-      placeholder: 'Search a movie or show you already know…',
+      role: 'combobox',
+      placeholder: 'Search a movie, show or person…',
       autocomplete: 'off',
+      spellcheck: 'false',
       'aria-label': 'Search for a title',
+      'aria-autocomplete': 'list',
+      'aria-haspopup': 'listbox',
+      'aria-expanded': 'false',
+      'aria-controls': LISTBOX_ID,
     }) as HTMLInputElement;
-    input.addEventListener('input', () => {
-      if (debounceTimer !== null) window.clearTimeout(debounceTimer);
-      debounceTimer = window.setTimeout(() => void runSearch(input.value), SEARCH_DEBOUNCE_MS);
-    });
 
     const searchIconWrap = el('span', { class: 'icon-inline', style: 'width:18px;height:18px' });
     searchIconWrap.innerHTML = `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="8.6" cy="8.6" r="5.6" stroke="currentColor" stroke-width="1.6"/><path d="M17 17l-4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`;
 
-    const resultsList = el('div', { class: 'search-results-list' });
+    const panelHost = el('div', { class: 'search-panel-host' });
+    const fullHost = el('div', { class: 'search-full-host' });
+    const statusEl = el('div', { class: 'visually-hidden', role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true' });
     const detailHost = el('div', { class: 'search-detail-host' });
+    const field = el('div', { class: 'search-field' }, [el('div', { class: 'search-bar' }, [searchIconWrap, input]), panelHost, statusEl]);
 
     const header = el('div', { class: 'search-header' }, [
       (() => {
@@ -106,13 +153,455 @@ export function renderSearch(root: HTMLElement): () => void {
       el('p', { class: 'search-sub' }, [
         'Find a movie or show you already like, and see what\u2019s actually similar — pulled straight from TMDB\u2019s own recommendation data, not re-run through your quiz answers, since taste shifts session to session.',
       ]),
-      el('div', { class: 'search-bar' }, [searchIconWrap, input]),
-      resultsList,
+      field,
+      fullHost,
     ]);
 
     mount(screen, el('div', {}, [header, detailHost]));
     // Don't pop the on-screen keyboard over the page on touch devices.
     if (!window.matchMedia('(hover: none)').matches) input.focus();
+
+    // ── picking ──────────────────────────────────────────────────────
+    function resetSearch(clearInput: boolean) {
+      searchToken++;
+      searchAbort?.abort();
+      if (debounceTimer !== null) window.clearTimeout(debounceTimer);
+      debounceTimer = null;
+      phase = 'idle';
+      titles = [];
+      people = [];
+      currentQuery = '';
+      panelOpen = false;
+      fullOpen = false;
+      category = 'all';
+      activeIdx = -1;
+      if (clearInput) input.value = '';
+      renderSearchUi();
+    }
+    function pickTitle(m: CatalogItem) {
+      resetSearch(true);
+      void selectTitle(m, detailHost);
+    }
+    function pickPerson(p: PersonSummary) {
+      resetSearch(true);
+      void selectPerson(p.id, detailHost);
+    }
+    function pickOption(i: number) {
+      const o = options[i];
+      if (!o) return;
+      if (o.kind === 'title' && o.title) pickTitle(o.title);
+      else if (o.person) pickPerson(o.person);
+    }
+
+    // ── rendering ────────────────────────────────────────────────────
+    function shownTitles(variant: string): CatalogItem[] {
+      return titles.slice(0, variant === 'compact' ? 6 : 8);
+    }
+    function shownPeople(variant: string): PersonSummary[] {
+      return people.slice(0, variant === 'compact' ? 3 : 4);
+    }
+
+    function setExpanded(open: boolean) {
+      input.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (!open) input.removeAttribute('aria-activedescendant');
+    }
+
+    function renderSearchUi() {
+      const hadFocus = (panelHost.contains(document.activeElement) || fullHost.contains(document.activeElement)) && document.activeElement !== input;
+      renderSearchUiInner();
+      // The focused Retry / filter / See-all control may have been replaced;
+      // hand focus back to the field rather than dropping it on the page.
+      if (hadFocus && !field.contains(document.activeElement) && !fullHost.contains(document.activeElement)) input.focus({ preventScroll: true });
+    }
+
+    function renderSearchUiInner() {
+      const type = getPreferences().searchType;
+      const valid = phase !== 'idle';
+      const showFull = valid && (type === 'full-page' || fullOpen);
+      options = [];
+      if (showFull) {
+        panelHost.replaceChildren();
+        setExpanded(false);
+        renderFull();
+      } else {
+        fullHost.replaceChildren();
+        if (panelOpen && valid) renderPanel(type);
+        else {
+          panelHost.replaceChildren();
+          setExpanded(false);
+        }
+      }
+      field.dataset.searchType = type;
+    }
+
+    redrawSearch = () => renderSearchUi();
+
+    function announce() {
+      if (phase === 'loading') statusEl.textContent = 'Searching\u2026';
+      else if (phase === 'ready') {
+        statusEl.textContent = titles.length + people.length === 0 ? 'Nothing found for that search.' : `${titles.length} title${titles.length === 1 ? '' : 's'} and ${people.length} ${people.length === 1 ? 'person' : 'people'} found.`;
+      } else if (phase === 'idle') statusEl.textContent = '';
+    }
+
+    function skeletonRows(n: number): HTMLElement[] {
+      return Array.from({ length: n }, () =>
+        el('div', { class: 'search-skel-row', 'aria-hidden': 'true' }, [el('span', { class: 'skeleton search-skel-poster' }), el('span', { class: 'search-skel-lines' }, [el('span', { class: 'skeleton' }), el('span', { class: 'skeleton' })])])
+      );
+    }
+
+    function titleMeta(m: CatalogItem): HTMLElement {
+      const parts: (Node | string)[] = [];
+      const type = m.type === 'series' ? 'TV series' : 'Movie';
+      parts.push(m.year ? `${m.year} \u00b7 ${type}` : type);
+      const line = el('span', { class: 'search-result-type' }, parts);
+      if (hasRating(m)) {
+        const r = el('span', { class: 'search-result-rating' });
+        r.innerHTML = `<span aria-hidden="true"><span class="icon-inline" style="width:11px;height:11px">${ICON.starFilled}</span> ${m.voteAverage.toFixed(1)}</span><span class="visually-hidden"> TMDB rating ${m.voteAverage.toFixed(1)} out of 10</span>`;
+        line.append(' ', r);
+      }
+      return line;
+    }
+
+    function buildOption(kind: 'title' | 'person', data: CatalogItem | PersonSummary, variant: string): Option {
+      const idx = options.length;
+      const isTitle = kind === 'title';
+      const m = data as CatalogItem;
+      const p = data as PersonSummary;
+      const label = isTitle ? `${m.title}${m.year ? ` (${m.year})` : ''}, ${m.type === 'series' ? 'TV series' : 'movie'}` : `${p.name}, ${p.knownForDepartment}`;
+      const meta = el('span', { class: 'search-result-meta' }, [
+        el('span', { class: 'search-result-title' }, [isTitle ? m.title : p.name]),
+        isTitle ? titleMeta(m) : el('span', { class: 'search-result-type' }, [p.knownForDepartment]),
+        ...(!isTitle && p.knownFor && variant !== 'compact' ? [el('span', { class: 'search-result-known' }, [`Known for ${p.knownFor.join(', ')}`])] : []),
+      ]);
+      const children: (Node | string)[] = [
+        buildPosterImage(isTitle ? { src: posterUrl(m.posterPath, 'xs'), alt: '', fallbackText: m.title.slice(0, 1) } : { src: personImageUrl(p.profilePath), alt: '', fallbackText: p.name.slice(0, 1) }),
+        meta,
+      ];
+      if (variant === 'compact') children.push(el('span', { class: 'search-tag', 'aria-hidden': 'true' }, [isTitle ? (m.type === 'series' ? 'TV' : 'Movie') : 'Person']));
+      const node = el('div', {
+        class: `search-option search-option-${kind}`,
+        role: 'option',
+        id: `${LISTBOX_ID}-o${idx}`,
+        'aria-selected': 'false',
+        'aria-label': label,
+        'data-index': idx,
+      }, children);
+      // Keep keyboard focus in the field; pick on click/tap.
+      node.addEventListener('mousedown', (e) => e.preventDefault());
+      node.addEventListener('click', () => pickOption(idx));
+      node.addEventListener('mouseenter', () => setActive(idx, false));
+      const opt: Option = isTitle ? { kind, title: m, node } : { kind, person: p, node };
+      options.push(opt);
+      return opt;
+    }
+
+    function group(labelText: string, id: string, rows: HTMLElement[]): HTMLElement {
+      return el('div', { class: 'search-group', role: 'group', 'aria-labelledby': id }, [el('div', { class: 'search-group-label', id }, [labelText]), ...rows]);
+    }
+
+    let previewEl: HTMLElement | null = null;
+
+    function renderPanel(type: 'grouped' | 'compact' | 'expanded' | 'full-page') {
+      const variant = type === 'full-page' ? 'grouped' : type;
+      const scroll = el('div', { class: 'search-panel-scroll' });
+      let seeAll: HTMLElement | null = null;
+      previewEl = null;
+
+      if (phase === 'loading') {
+        scroll.setAttribute('aria-busy', 'true');
+        scroll.append(...skeletonRows(variant === 'compact' ? 4 : 5));
+        setExpanded(false);
+      } else if (phase === 'error') {
+        scroll.append(
+          el('div', { class: 'search-state', role: 'alert' }, [
+            el('p', {}, ['Search failed — check your connection and try again.']),
+            el('button', { class: 'btn btn-ghost toolbar-btn', type: 'button', onclick: () => void runSearch(currentQuery, true) }, ['Retry']),
+          ])
+        );
+        setExpanded(false);
+      } else if (titles.length + people.length === 0) {
+        scroll.append(el('p', { class: 'search-state' }, ['No matches — try a different spelling.']));
+        setExpanded(false);
+      } else {
+        const t = shownTitles(variant);
+        const pp = shownPeople(variant);
+        const titleRows = t.map((m) => buildOption('title', m, variant).node);
+        const personRows = pp.map((m) => buildOption('person', m, variant).node);
+        const groups: HTMLElement[] = [];
+        if (titleRows.length) groups.push(group('Movies & TV Shows', 'search-g-titles', titleRows));
+        if (personRows.length) groups.push(group('People', 'search-g-people', personRows));
+        scroll.append(el('div', { class: 'search-listbox', role: 'listbox', id: LISTBOX_ID, 'aria-label': 'Search suggestions' }, groups));
+        setExpanded(true);
+        seeAll = el('button', { class: 'search-see-all', type: 'button', onclick: () => openFull() }, [`See all results for \u201c${currentQuery}\u201d`]);
+        if (variant === 'expanded') previewEl = el('aside', { class: 'search-preview', 'aria-hidden': 'true' });
+      }
+
+      const panel = el('div', { class: 'search-panel', 'data-variant': variant }, [
+        el('div', { class: 'search-panel-body' }, [scroll, ...(previewEl ? [previewEl] : [])]),
+        ...(seeAll ? [el('div', { class: 'search-panel-foot' }, [seeAll])] : []),
+      ]);
+      panelHost.replaceChildren(panel);
+      // A region that scrolls must be reachable without a pointer. Arrow keys
+      // already scroll the active option into view; this adds a Tab stop only
+      // when the content really overflows, so there is no extra stop otherwise.
+      requestAnimationFrame(() => {
+        if (scroll.isConnected && scroll.scrollHeight > scroll.clientHeight + 1) scroll.tabIndex = 0;
+      });
+      if (activeIdx >= options.length) activeIdx = -1;
+      syncActive(false);
+    }
+
+    function renderPreview() {
+      if (!previewEl) return;
+      const o = options[activeIdx] ?? options[0];
+      if (!o) return previewEl.replaceChildren();
+      if (o.kind === 'title' && o.title) {
+        const m = o.title;
+        previewEl.replaceChildren(
+          buildPosterImage({ src: posterUrl(m.posterPath, 'md'), alt: '', fallbackText: m.title.slice(0, 1) }),
+          el('h4', {}, [`${m.title}${m.year ? ` (${m.year})` : ''}`]),
+          el('p', { class: 'search-result-type' }, [m.type === 'series' ? 'TV series' : 'Movie']),
+          ...(hasRating(m) ? [el('p', { class: 'search-result-type' }, [`TMDB ${m.voteAverage.toFixed(1)} / 10`])] : []),
+          el('p', { class: 'search-preview-overview' }, [m.overview ? (m.overview.length > 240 ? `${m.overview.slice(0, m.overview.lastIndexOf(' ', 240))}\u2026` : m.overview) : 'No synopsis available.'])
+        );
+      } else if (o.person) {
+        const p = o.person;
+        previewEl.replaceChildren(
+          buildPosterImage({ src: personImageUrl(p.profilePath), alt: '', fallbackText: p.name.slice(0, 1) }),
+          el('h4', {}, [p.name]),
+          el('p', { class: 'search-result-type' }, [p.knownForDepartment]),
+          ...(p.knownFor ? [el('p', { class: 'search-preview-overview' }, [`Known for ${p.knownFor.join(', ')}`])] : [])
+        );
+      }
+    }
+
+    function setActive(i: number, scrollIntoView: boolean) {
+      activeIdx = i;
+      syncActive(scrollIntoView);
+    }
+    function syncActive(scrollIntoView: boolean) {
+      options.forEach((o, i) => o.node.setAttribute('aria-selected', i === activeIdx ? 'true' : 'false'));
+      const cur = options[activeIdx];
+      if (cur) {
+        input.setAttribute('aria-activedescendant', cur.node.id);
+        if (scrollIntoView) cur.node.scrollIntoView({ block: 'nearest' });
+      } else input.removeAttribute('aria-activedescendant');
+      renderPreview();
+    }
+
+    function openFull() {
+      fullOpen = true;
+      panelOpen = false;
+      category = 'all';
+      renderSearchUi();
+      input.focus({ preventScroll: true });
+    }
+
+    function personCard(p: PersonSummary): HTMLElement {
+      return el('button', { class: 'search-person-card', type: 'button', onclick: () => pickPerson(p) }, [
+        buildPosterImage({ src: personImageUrl(p.profilePath), alt: '', fallbackText: p.name.slice(0, 1) }),
+        el('span', { class: 'search-result-meta' }, [
+          el('span', { class: 'search-result-title' }, [p.name]),
+          el('span', { class: 'search-result-type' }, [p.knownForDepartment]),
+          ...(p.knownFor ? [el('span', { class: 'search-result-known' }, [`Known for ${p.knownFor.join(', ')}`])] : []),
+        ]),
+      ]);
+    }
+
+    function renderFull() {
+      if (phase === 'loading') {
+        fullHost.replaceChildren(
+          el('section', { class: 'search-full', 'aria-label': 'Search results', 'aria-busy': 'true' }, [
+            el('div', { class: 'results-grid' }, Array.from({ length: 6 }, () => el('div', { class: 'result-card skeleton-card', 'aria-hidden': 'true' }, [el('div', { class: 'result-poster skeleton' })]))),
+          ])
+        );
+        return;
+      }
+      if (phase === 'error') {
+        fullHost.replaceChildren(
+          el('div', { class: 'state-message state-message-inline', role: 'alert' }, [
+            el('h3', {}, ['Search failed']),
+            el('p', {}, ['Check your connection and try again.']),
+            el('button', { class: 'btn btn-primary', type: 'button', onclick: () => void runSearch(currentQuery, true) }, ['Retry']),
+          ])
+        );
+        return;
+      }
+      const movies = titles.filter((m) => m.type === 'movie');
+      const shows = titles.filter((m) => m.type === 'series');
+      const counts: [Category, string, number][] = [
+        ['all', 'All', titles.length + people.length],
+        ['movie', 'Movies', movies.length],
+        ['tv', 'TV Shows', shows.length],
+        ['people', 'People', people.length],
+      ];
+      // Only categories the results actually contain.
+      const available = counts.filter(([id, , n]) => id === 'all' || n > 0);
+      if (!available.some(([id]) => id === category)) category = 'all';
+      if (titles.length + people.length === 0) {
+        fullHost.replaceChildren(el('div', { class: 'state-message state-message-inline' }, [el('h3', {}, ['No matches']), el('p', {}, ['Try a different spelling.'])]));
+        return;
+      }
+      const chips = el('div', { class: 'search-filters', role: 'group', 'aria-label': 'Filter results' }, available.map(([id, label, n]) =>
+        el('button', {
+          class: `search-filter${category === id ? ' active' : ''}`,
+          type: 'button',
+          'aria-pressed': category === id ? 'true' : 'false',
+          onclick: () => {
+            category = id;
+            renderFull();
+            fullHost.querySelector<HTMLElement>(`[data-filter="${id}"]`)?.focus({ preventScroll: true });
+          },
+          'data-filter': id,
+        }, [`${label} `, el('span', { class: 'search-filter-count' }, [String(n)])])
+      ));
+      const wantTitles = category === 'all' || category === 'movie' || category === 'tv';
+      const visibleTitles = category === 'movie' ? movies : category === 'tv' ? shows : titles;
+      const wantPeople = category === 'all' || category === 'people';
+      const body: HTMLElement[] = [];
+      if (wantTitles && visibleTitles.length) {
+        body.push(
+          el('div', { class: 'search-full-group' }, [
+            ...(category === 'all' ? [el('h3', { class: 'search-full-heading' }, ['Movies & TV Shows'])] : []),
+            el('div', { class: 'results-grid' }, visibleTitles.map((m, i) => buildCard(toSearchItem(m), i, () => pickTitle(m)))),
+          ])
+        );
+      }
+      if (wantPeople && people.length) {
+        body.push(
+          el('div', { class: 'search-full-group' }, [
+            ...(category === 'all' ? [el('h3', { class: 'search-full-heading' }, ['People'])] : []),
+            el('div', { class: 'search-people-grid' }, people.map(personCard)),
+          ])
+        );
+      }
+      fullHost.replaceChildren(el('section', { class: 'search-full', 'aria-label': 'Search results' }, [el('div', { class: 'search-full-head' }, [el('h3', {}, [`Results for \u201c${currentQuery}\u201d`]), chips]), ...body]));
+    }
+
+    // ── querying ─────────────────────────────────────────────────────
+    async function runSearch(query: string, force = false) {
+      const trimmed = query.trim();
+      if (trimmed.length < MIN_QUERY) {
+        resetSearch(false);
+        return;
+      }
+      // Same query already answered: redraw from the cache, no new request.
+      if (!force && trimmed === currentQuery && (phase === 'ready' || phase === 'loading')) {
+        renderSearchUi();
+        return;
+      }
+      const token = ++searchToken;
+      searchAbort?.abort();
+      const ctrl = new AbortController();
+      searchAbort = ctrl;
+      currentQuery = trimmed;
+      phase = 'loading';
+      panelOpen = !fullOpen;
+      activeIdx = -1;
+      announce();
+      renderSearchUi();
+      try {
+        const [t, pe] = await Promise.all([
+          searchMulti(trimmed, ctrl.signal),
+          searchPeople(trimmed, ctrl.signal).catch((err) => {
+            if (ctrl.signal.aborted) throw err;
+            return [] as PersonSummary[];
+          }),
+        ]);
+        if (cancelled || token !== searchToken) return;
+        titles = t;
+        people = pe;
+        phase = 'ready';
+      } catch (err) {
+        if ((err instanceof DOMException && err.name === 'AbortError') || cancelled || token !== searchToken) return;
+        titles = [];
+        people = [];
+        phase = 'error';
+      }
+      announce();
+      renderSearchUi();
+    }
+
+    // ── input wiring ─────────────────────────────────────────────────
+    input.addEventListener('input', () => {
+      if (debounceTimer !== null) window.clearTimeout(debounceTimer);
+      if (input.value.trim().length < MIN_QUERY) {
+        debounceTimer = null;
+        resetSearch(false);
+        return;
+      }
+      debounceTimer = window.setTimeout(() => {
+        debounceTimer = null;
+        void runSearch(input.value);
+      }, SEARCH_DEBOUNCE_MS);
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        // Decide from the cached results, not the rendered rows: the panel
+        // may have been dismissed, which clears its rows.
+        if (phase !== 'ready' || titles.length + people.length === 0 || getPreferences().searchType === 'full-page' || fullOpen) return;
+        e.preventDefault();
+        if (!panelOpen) {
+          panelOpen = true;
+          renderSearchUi();
+        }
+        if (options.length === 0) return;
+        const next = e.key === 'ArrowDown' ? (activeIdx + 1) % options.length : (activeIdx - 1 + options.length) % options.length;
+        setActive(next, true);
+      } else if (e.key === 'Enter') {
+        if (activeIdx >= 0 && options[activeIdx] && panelOpen) {
+          e.preventDefault();
+          pickOption(activeIdx);
+        } else if (input.value.trim().length >= MIN_QUERY) {
+          e.preventDefault();
+          if (debounceTimer !== null) {
+            window.clearTimeout(debounceTimer);
+            debounceTimer = null;
+          }
+          fullOpen = true;
+          panelOpen = false;
+          category = 'all';
+          void runSearch(input.value);
+          renderSearchUi();
+        }
+      } else if (e.key === 'Escape' && panelOpen) {
+        // Close the suggestions but keep what was typed (type=search would
+        // otherwise clear itself on Escape).
+        e.preventDefault();
+        e.stopPropagation();
+        panelOpen = false;
+        activeIdx = -1;
+        renderSearchUi();
+        input.focus({ preventScroll: true });
+      }
+    });
+
+    input.addEventListener('focus', () => {
+      if (phase !== 'idle' && !fullOpen && getPreferences().searchType !== 'full-page' && !panelOpen) {
+        panelOpen = true;
+        renderSearchUi();
+      }
+    });
+    field.addEventListener('focusout', (e) => {
+      const next = e.relatedTarget as Node | null;
+      // A null target is a re-render dropping the focused control (or the
+      // window losing focus) — not the user leaving. Real outside clicks are
+      // handled by the pointerdown listener below.
+      if (!next || field.contains(next)) return;
+      if (!panelOpen) return;
+      panelOpen = false;
+      activeIdx = -1;
+      renderSearchUi();
+    });
+    const onOutsidePointer = (e: PointerEvent) => {
+      if (!panelOpen || field.contains(e.target as Node)) return;
+      panelOpen = false;
+      activeIdx = -1;
+      renderSearchUi();
+    };
+    document.addEventListener('pointerdown', onOutsidePointer);
+    removeOutsideListener = () => document.removeEventListener('pointerdown', onOutsidePointer);
 
     // A cast-member click elsewhere in the app lands here already pointed
     // at that person/title instead of an empty search box.
@@ -137,79 +626,6 @@ export function renderSearch(root: HTMLElement): () => void {
     unsubscribePending = store.subscribe((state) => {
       if (state.pendingSearchTarget && !cancelled) consumePending();
     });
-
-    async function runSearch(query: string) {
-      const token = ++searchToken;
-      searchAbort?.abort();
-      const trimmed = query.trim();
-      if (trimmed.length < 2) {
-        resultsList.replaceChildren();
-        return;
-      }
-      const ctrl = new AbortController();
-      searchAbort = ctrl;
-      resultsList.replaceChildren(el('p', { class: 'search-loading', role: 'status' }, ['Searching…']));
-      try {
-        const [titles, people] = await Promise.all([
-          searchMulti(trimmed, ctrl.signal),
-          searchPeople(trimmed, ctrl.signal).catch((err) => {
-            if (ctrl.signal.aborted) throw err;
-            return [];
-          }),
-        ]);
-        if (cancelled || token !== searchToken) return;
-        const personRows = people.slice(0, 3).map((p) =>
-          el(
-            'button',
-            {
-              class: 'search-result-row',
-              type: 'button',
-              onclick: () => {
-                resultsList.replaceChildren();
-                input.value = '';
-                void selectPerson(p.id, detailHost);
-              },
-            },
-            [
-              buildPosterImage({ src: personImageUrl(p.profilePath), alt: '', fallbackText: p.name.slice(0, 1) }),
-              el('span', { class: 'search-result-meta' }, [
-                el('span', { class: 'search-result-title' }, [p.name]),
-                el('span', { class: 'search-result-type' }, [p.knownForDepartment]),
-              ]),
-            ]
-          )
-        );
-        const titleRows = titles.slice(0, 8).map((m) =>
-          el(
-            'button',
-            {
-              class: 'search-result-row',
-              type: 'button',
-              onclick: () => {
-                resultsList.replaceChildren();
-                input.value = '';
-                void selectTitle(m, detailHost);
-              },
-            },
-            [
-              buildPosterImage({ src: posterUrl(m.posterPath, 'xs'), alt: '', fallbackText: m.title.slice(0, 1) }),
-              el('span', { class: 'search-result-meta' }, [
-                el('span', { class: 'search-result-title' }, [`${m.title} (${m.year})`]),
-                el('span', { class: 'search-result-type' }, [m.type === 'series' ? 'TV series' : 'Movie']),
-              ]),
-            ]
-          )
-        );
-        if (personRows.length + titleRows.length === 0) {
-          resultsList.replaceChildren(el('p', { class: 'search-loading' }, ['No matches — try a different spelling.']));
-          return;
-        }
-        resultsList.replaceChildren(...titleRows, ...personRows);
-      } catch (err) {
-        if ((err instanceof DOMException && err.name === 'AbortError') || cancelled || token !== searchToken) return;
-        resultsList.replaceChildren(el('p', { class: 'search-loading', role: 'alert' }, ['Search failed — check your connection and try again.']));
-      }
-    }
   }
 
   async function selectPerson(id: number, host: HTMLElement) {
@@ -432,7 +848,7 @@ export function renderSearch(root: HTMLElement): () => void {
     }
   }
 
-  function buildCard(item: ScoredItem, index: number): HTMLElement {
+  function buildCard(item: ScoredItem, index: number, pick?: () => void): HTMLElement {
     const poster = buildPosterImage({
       src: posterUrl(item.posterPath, 'md'),
       alt: `${item.title} poster`,
@@ -440,32 +856,33 @@ export function renderSearch(root: HTMLElement): () => void {
     });
 
     const previewParts = [{ svg: ICON.starFilled, label: item.voteAverage.toFixed(1) }];
+    const open = () => {
+      if (pick) return pick();
+      const host = screen.querySelector<HTMLElement>('.search-detail-host');
+      if (host) void selectTitle(item, host);
+    };
+    const rating = buildRatingLine(item);
+    const hasPreviewRating = hasRating(item);
 
-    const card = el('article', { class: 'result-card stagger-in', style: `--stagger: ${Math.min(index, 20)}` }, [
+    const card = el('article', { class: 'result-card stagger-in', style: `--stagger: ${Math.min(index, 10)}` }, [
       el(
         'div',
         { class: 'result-poster' },
         [
           poster,
-          el('button', {
-            class: 'result-open',
-            type: 'button',
-            'aria-label': `See what's similar to ${item.title}`,
-            onclick: () => {
-              const host = screen.querySelector<HTMLElement>('.search-detail-host');
-              if (host) void selectTitle(item, host);
-            },
-          }),
-          buildWatchlistButton(item),
-          el('div', { class: 'result-hover-preview' }, [
+          el('button', { class: 'result-open', type: 'button', tabindex: '-1', 'aria-hidden': 'true', onclick: open }),
+          buildActionGroup([buildWatchlistButton(item), buildQuickButton(`See what\u2019s similar to ${item.title}`, () => open())]),
+          el('div', { class: 'result-hover-preview', 'aria-hidden': 'true' }, [
             el('p', { class: 'hover-preview-overview' }, [item.overview || 'No synopsis available.']),
-            (() => {
-              const p = el('p', { class: 'hover-preview-ratings' });
-              p.innerHTML = previewParts
-                .map((pt) => `<span class="icon-inline" style="width:12px;height:12px">${pt.svg}</span> ${pt.label}`)
-                .join(' ');
-              return p;
-            })(),
+            ...(hasPreviewRating
+              ? [
+                  (() => {
+                    const p = el('p', { class: 'hover-preview-ratings' });
+                    p.innerHTML = previewParts.map((pt) => `<span class="icon-inline" style="width:12px;height:12px">${pt.svg}</span> ${pt.label}`).join(' ');
+                    return p;
+                  })(),
+                ]
+              : []),
             (() => {
               const span = el('span', { class: 'hover-preview-cta' });
               span.innerHTML = `<span class="icon-inline" style="width:12px;height:12px">${ICON.arrowUpRight}</span> See what's similar to this`;
@@ -476,25 +893,12 @@ export function renderSearch(root: HTMLElement): () => void {
       ),
       el('div', { class: 'result-body' }, [
         ...(item.matchPct > 0 ? [el('div', { class: 'result-match search-overlap' }, [`${item.matchPct}% genre overlap`])] : []),
-        el('h3', { class: 'result-title' }, [
-          el(
-            'button',
-            {
-              class: 'result-title-btn',
-              type: 'button',
-              onclick: () => {
-                const host = screen.querySelector<HTMLElement>('.search-detail-host');
-                if (host) void selectTitle(item, host);
-              },
-            },
-            [`${item.title} (${item.year})`]
-          ),
-        ]),
-        el(
-          'ul',
-          { class: 'result-reasons' },
-          item.reasons.map((r) => el('li', {}, [r]))
-        ),
+        el('h3', { class: 'result-title' }, [el('button', { class: 'result-title-btn', type: 'button', onclick: open }, [`${item.title} (${item.year})`])]),
+        buildKindLine(item),
+        ...(rating ? [rating] : []),
+        ...(item.overview ? [el('p', { class: 'result-synopsis' }, [item.overview.length > 170 ? `${item.overview.slice(0, item.overview.lastIndexOf(' ', 170))}\u2026` : item.overview])] : []),
+        ...(item.reasons.length ? [el('ul', { class: 'result-reasons' }, item.reasons.map((r) => el('li', {}, [r])))] : []),
+        buildDetailsButton('See similar', `See what\u2019s similar to ${item.title}`, () => open()),
         buildStarRow(item, resultRatings.get(keyOf(item)), (v) => {
           resultRatings.set(keyOf(item), v);
           recordRating(item, v, 'result');
@@ -512,6 +916,8 @@ export function renderSearch(root: HTMLElement): () => void {
     unsubscribeAiMode();
     unsubscribePending?.();
     unsubscribePending = null;
+    unsubscribeAppearance();
+    removeOutsideListener?.();
     if (debounceTimer !== null) window.clearTimeout(debounceTimer);
     searchAbort?.abort();
   };
