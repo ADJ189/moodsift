@@ -212,7 +212,10 @@ test.describe('landing gallery — no TMDB credential', () => {
   test('shows the static sample, makes no TMDB request, keeps the warning', async ({ page }) => {
     const requests: string[] = [];
     page.on('request', (r) => {
-      if (r.url().includes('themoviedb.org')) requests.push(r.url());
+      // Compare the parsed hostname, not a substring of the URL, so a host like
+      // evil-themoviedb.org.example.com can neither match nor hide a request.
+      const host = new URL(r.url()).hostname;
+      if (host === 'themoviedb.org' || host.endsWith('.themoviedb.org')) requests.push(r.url());
     });
     await page.goto('/');
     await expect(page.locator('.hero-visual')).toBeAttached();
