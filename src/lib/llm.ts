@@ -83,7 +83,7 @@ export function getLlmStatus(): LlmStatus {
  * backend, dtype and approximate weight size when ready; the reason when not. */
 export function getLlmStatusDetail(): string {
   if (getAiMode() === 'lightweight') {
-    return 'Data saver is on, so no AI model is downloaded. You can change this in Appearance → AI engine.';
+    return 'Data saver is on, so no AI model is downloaded. You can change this in Settings → AI engine.';
   }
   return statusDetail;
 }

@@ -341,6 +341,89 @@ export async function discoverCandidates(
   return results.flatMap((r) => r.items);
 }
 
+/** Cap for the landing gallery — a decorative showcase, not a catalog. */
+const SHOWCASE_MAX = 8;
+
+/**
+ * A small, popularity-ordered set of titles for the landing-page gallery.
+ *
+ * Deliberately NOT `discoverCandidates()`: that pipeline pulls several pages
+ * per media type to feed the scoring engine, which is far more traffic than
+ * a decorative carousel needs. This makes exactly one request per media type
+ * (two total), through the same `tmdbFetch` so auth, timeout, retry and the
+ * session cache behave identically.
+ *
+ * These are *popular* titles, not recommendations — nothing here is scored
+ * against anyone's taste, and callers must not present it as personalised.
+ *
+ * Only titles with a poster are returned (it is a visual gallery). Movies and
+ * series are balanced (up to four each, topped up from the other type if one
+ * runs short) and interleaved so the deck alternates; within each type the
+ * order is TMDB popularity. A title with a backdrop is preferred over a
+ * poster-only one when there is a choice, but poster-only is still allowed.
+ *
+ * Pass a signal to cancel on navigation; an abort rejects with `AbortError`.
+ * Rejects with `TmdbUnavailableError` only if *both* requests fail.
+ */
+export async function getLandingShowcase(signal?: AbortSignal): Promise<CatalogItem[]> {
+  const base = { sort_by: 'popularity.desc', include_adult: 'false', page: '1' };
+  const load = (path: string, voteCount: string, type: 'movie' | 'tv'): Promise<CatalogItem[] | null> =>
+    tmdbFetch<{ results?: TmdbRawResult[] }>(path, { ...base, 'vote_count.gte': voteCount }, signal).then(
+      (page) => {
+        const items: CatalogItem[] = [];
+        for (const raw of page.results ?? []) {
+          const item = toCatalogItem(raw, type);
+          if (item) items.push(item);
+        }
+        return items;
+      },
+      (err: unknown) => {
+        if (signal?.aborted) throw err; // a cancelled load is not a "failure" — let it propagate
+        return null;
+      }
+    );
+
+  const [movies, shows] = await Promise.all([load('/discover/movie', '150', 'movie'), load('/discover/tv', '100', 'tv')]);
+  if (movies === null && shows === null) throw new TmdbUnavailableError();
+
+  const seen = new Set<string>();
+  const usable = (list: CatalogItem[] | null): CatalogItem[] =>
+    (list ?? [])
+      .filter((item) => {
+        const key = `${item.tmdbType}:${item.id}`;
+        if (!item.posterPath || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => b.popularity - a.popularity);
+
+  const pools = [usable(movies), usable(shows)];
+  // Each type's pool: backdrop-having titles first (stable, so popularity
+  // order survives inside each group), poster-only titles as the fallback.
+  const ranked = pools.map((pool) => [...pool.filter((i) => i.backdropPath), ...pool.filter((i) => !i.backdropPath)]);
+
+  const picked: CatalogItem[][] = [[], []];
+  const quota = SHOWCASE_MAX / 2;
+  for (let t = 0; t < 2; t++) picked[t] = ranked[t]!.slice(0, quota);
+  // Top up from whichever type still has spare titles if the other fell short.
+  for (let t = 0; t < 2; t++) {
+    const other = 1 - t;
+    const spare = ranked[other]!.slice(picked[other]!.length);
+    picked[other] = [...picked[other]!, ...spare.slice(0, Math.max(0, quota - picked[t]!.length))];
+  }
+
+  // Interleave, leading with whichever type holds the single most popular title.
+  const lead = (picked[0]![0]?.popularity ?? -1) >= (picked[1]![0]?.popularity ?? -1) ? 0 : 1;
+  const a = picked[lead]!.sort((x, y) => y.popularity - x.popularity);
+  const b = picked[1 - lead]!.sort((x, y) => y.popularity - x.popularity);
+  const out: CatalogItem[] = [];
+  for (let i = 0; i < Math.max(a.length, b.length) && out.length < SHOWCASE_MAX; i++) {
+    if (a[i]) out.push(a[i]!);
+    if (b[i] && out.length < SHOWCASE_MAX) out.push(b[i]!);
+  }
+  return out;
+}
+
 /** Thrown when every TMDB request for a discovery pass failed. */
 export class TmdbUnavailableError extends Error {
   constructor() {
@@ -598,6 +681,7 @@ interface TmdbPersonSearchRaw {
   name: string;
   profile_path: string | null;
   known_for_department: string;
+  known_for?: { title?: string; name?: string }[];
 }
 
 /** Search for a person (actor, director, etc.) by name. Kept separate
@@ -615,7 +699,13 @@ export async function searchPeople(query: string, signal?: AbortSignal): Promise
   );
   return data.results
     .filter((p) => p.known_for_department) // filters out near-empty/junk entries
-    .map((p) => ({ id: p.id, name: p.name, profilePath: p.profile_path, knownForDepartment: p.known_for_department }));
+    .map((p) => {
+      const knownFor = (Array.isArray(p.known_for) ? p.known_for : [])
+        .map((k) => (typeof k.title === 'string' ? k.title : typeof k.name === 'string' ? k.name : ''))
+        .filter(Boolean)
+        .slice(0, 3);
+      return { id: p.id, name: p.name, profilePath: p.profile_path, knownForDepartment: p.known_for_department, ...(knownFor.length ? { knownFor } : {}) };
+    });
 }
 
 interface TmdbCastRaw {

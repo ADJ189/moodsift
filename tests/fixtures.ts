@@ -77,3 +77,45 @@ export const test = base.extend<{ mock: Mock }>({
 });
 
 export { expect };
+
+/** Fictional, deterministic search results. Registered after mockTmdb, so it
+ * takes precedence for the two search endpoints only. */
+export async function mockSearchResults(page: Page, opts: { delayMs?: number; fail?: boolean; empty?: boolean } = {}): Promise<{ calls: string[] }> {
+  const calls: string[] = [];
+  await page.route(/api\.themoviedb\.org\/3\/search\/(multi|person)/, async (route: Route) => {
+    const url = new URL(route.request().url());
+    calls.push(`${url.pathname}?${url.searchParams.get('query') ?? ''}`);
+    if (opts.delayMs) await new Promise((r) => setTimeout(r, opts.delayMs));
+    if (opts.fail) return route.fulfill({ status: 500, body: 'fixture failure' });
+    const json = (body: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+    if (opts.empty) return json({ results: [] });
+    if (url.pathname.endsWith('/person')) {
+      return json({
+        results: [
+          { id: 501, name: 'Mira Calloway', profile_path: null, known_for_department: 'Acting', known_for: [{ title: 'The Midnight Reel' }, { name: 'Midnight Harbor' }] },
+          { id: 502, name: 'Jonas Midland', profile_path: null, known_for_department: 'Directing' },
+        ],
+      });
+    }
+    const movie = (id: number, title: string, year: number, votes: number) => ({
+      id, media_type: 'movie', title, release_date: `${year}-03-01`, overview: `${title} is a fictional fixture overview used to test synopsis clamping. It runs long enough to need trimming when a card shows only a few lines of text, so the layout is exercised honestly.`,
+      genre_ids: [53], original_language: 'en', vote_average: votes ? 7.8 : 0, vote_count: votes, popularity: 50, poster_path: null, backdrop_path: null,
+    });
+    const show = (id: number, name: string, year: number) => ({
+      id, media_type: 'tv', name, first_air_date: `${year}-09-01`, overview: `${name} is a fictional series fixture.`, genre_ids: [18], original_language: 'en', vote_average: 8.1, vote_count: 900, popularity: 40, poster_path: null, backdrop_path: null,
+    });
+    return json({ results: [movie(301, 'The Midnight Reel', 2019, 1200), movie(302, 'Midnight Express Lane', 2011, 0), movie(303, 'Midnight in the Garden of Glass', 1998, 400), show(304, 'Midnight Harbor', 2022), show(305, 'Midnight Radio', 2015), movie(306, 'After Midnight', 2005, 90)] });
+  });
+  return { calls };
+}
+
+/** Opens the Settings workspace, optionally on a section tab. */
+export async function openSettings(page: Page, section?: string): Promise<void> {
+  await page.getByRole('button', { name: 'Appearance settings', exact: true }).click();
+  if (section) await page.getByRole('tab', { name: section }).click();
+}
+
+/** "Saved looks" and other secondary controls live in closed disclosures. */
+export async function openDisclosure(page: Page, summary: string): Promise<void> {
+  await page.locator('summary', { hasText: summary }).click();
+}

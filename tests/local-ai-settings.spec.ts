@@ -20,8 +20,9 @@ test.describe('local AI engine settings', () => {
     // Not part of the appearance preferences.
     expect(await page.evaluate(() => localStorage.getItem('cinematch-appearance:v1') ?? '')).not.toContain('fastest');
 
-    await page.getByRole('tab', { name: 'Themes' }).click();
+    await page.getByRole('tab', { name: 'Theme' }).click();
     await page.getByRole('radio', { name: /Velvet Rose/ }).click();
+    await page.getByRole('tab', { name: 'Advanced' }).click();
     await page.getByRole('button', { name: 'Reset all appearance' }).click();
     expect(JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY)) ?? 'null').mode).toBe('fastest');
 

@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures';
+import { expect, openDisclosure, openSettings, test } from './fixtures';
 
 const KEY = 'cinematch-appearance:v1';
 
@@ -6,7 +6,7 @@ test.describe('appearance', () => {
   test('choices persist across reload and set the right attributes', async ({ page, mock }) => {
     void mock;
     await page.goto('/');
-    await page.getByRole('button', { name: 'Appearance settings', exact: true }).click();
+    await openSettings(page, 'Theme');
     await page.getByRole('radio', { name: /Noir & Gold/ }).click();
     await page.getByRole('radio', { name: 'Dark' }).click();
     await page.keyboard.press('Escape');
@@ -52,8 +52,9 @@ test.describe('appearance', () => {
     });
     await page.goto('/');
     const before = await page.evaluate(() => localStorage.getItem('cinematch.profile.v1'));
-    await page.getByRole('button', { name: 'Appearance settings', exact: true }).click();
+    await openSettings(page, 'Theme');
     await page.getByRole('radio', { name: /Velvet Rose/ }).click();
+    await page.getByRole('tab', { name: 'Advanced' }).click();
     await page.getByRole('button', { name: 'Reset all appearance' }).click();
     await expect(page.locator('html')).toHaveAttribute('data-palette', 'aurora');
     expect(await page.evaluate(() => localStorage.getItem('cinematch.profile.v1'))).toBe(before);
@@ -65,10 +66,10 @@ test.describe('appearance', () => {
     const opener = page.getByRole('button', { name: 'Appearance settings', exact: true });
     await opener.focus();
     await page.keyboard.press('Enter');
-    await expect(page.getByRole('dialog', { name: 'Appearance' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible();
     expect(await page.evaluate(() => !!document.activeElement?.closest('.appearance-panel'))).toBe(true);
     await page.keyboard.press('Escape');
-    await expect(page.getByRole('dialog', { name: 'Appearance' })).toBeHidden();
+    await expect(page.getByRole('dialog', { name: 'Settings' })).toBeHidden();
     await expect(opener).toBeFocused();
   });
 
@@ -77,6 +78,7 @@ test.describe('appearance', () => {
     await page.goto('/');
     const open = () => page.getByRole('button', { name: 'Appearance settings', exact: true }).click();
     await open();
+    await page.getByRole('tab', { name: 'Theme' }).click();
     await page.getByRole('button', { name: 'Surprise me' }).click(); // creates a toast with Undo
     await page.keyboard.press('Escape');
     await open(); // toast host now precedes the drawer in the DOM
@@ -94,7 +96,8 @@ test.describe('appearance', () => {
   test('custom accent validates input and warns when it would be hard to see', async ({ page, mock }) => {
     void mock;
     await page.goto('/');
-    await page.getByRole('button', { name: 'Appearance settings', exact: true }).click();
+    await openSettings(page, 'Theme');
+    await openDisclosure(page, 'Custom accent');
     const hex = page.getByLabel(/Custom accent colour as hex/);
     await hex.fill('not-a-colour');
     await hex.press('Tab');
@@ -108,7 +111,8 @@ test.describe('appearance', () => {
   test('saved looks, export and strict import', async ({ page, mock }) => {
     void mock;
     await page.goto('/');
-    await page.getByRole('button', { name: 'Appearance settings', exact: true }).click();
+    await openSettings(page, 'Theme');
+    await openDisclosure(page, 'Saved looks');
     await page.getByRole('radio', { name: /Forest/ }).click();
     await page.getByLabel('Name for the new look').fill('Woods');
     await page.getByRole('button', { name: 'Save current look' }).click();
@@ -116,6 +120,7 @@ test.describe('appearance', () => {
     await page.getByRole('button', { name: 'Woods', exact: true }).click();
     await expect(page.locator('html')).toHaveAttribute('data-palette', 'forest');
 
+    await page.getByRole('tab', { name: 'Advanced' }).click();
     await page.getByRole('button', { name: 'Export appearance' }).click();
     const exported = await page.getByLabel('Exported appearance JSON').inputValue();
     const parsed = JSON.parse(exported);
@@ -123,6 +128,7 @@ test.describe('appearance', () => {
     expect(Object.keys(parsed.preferences)).not.toContain('history');
     expect(exported).not.toMatch(/rating|watchlist|profile/i);
 
+    await page.getByRole('button', { name: /Import from JSON/ }).click();
     const importBox = page.getByLabel('Paste appearance JSON to import');
     await importBox.fill(JSON.stringify({ app: 'cinematch-appearance', version: 1, preferences: { ...parsed.preferences, palette: 'nope' } }));
     await page.getByRole('button', { name: 'Import appearance' }).click();
@@ -138,7 +144,7 @@ test.describe('appearance', () => {
   test('Compare with before shows the old look without saving it', async ({ page, mock }) => {
     void mock;
     await page.goto('/');
-    await page.getByRole('button', { name: 'Appearance settings', exact: true }).click();
+    await openSettings(page, 'Theme');
     await page.getByRole('radio', { name: /Ember/ }).click();
     await expect(page.locator('html')).toHaveAttribute('data-palette', 'ember');
     await page.getByRole('button', { name: 'Compare with before' }).click();
@@ -164,8 +170,7 @@ test.describe('appearance', () => {
   test('results layout, labels and tilt settings apply without remounting the screen', async ({ page, mock }) => {
     void mock;
     await page.goto('/');
-    await page.getByRole('button', { name: 'Appearance settings', exact: true }).click();
-    await page.getByRole('tab', { name: 'Layout' }).click();
+    await openSettings(page, 'Cards & layout');
     await page.getByRole('radio', { name: 'Compact list' }).click();
     await expect(page.locator('html')).toHaveAttribute('data-results-layout', 'list');
     await page.getByRole('radio', { name: 'Essential' }).click();

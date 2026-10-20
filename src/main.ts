@@ -7,6 +7,7 @@ import './styles/palettes.css';
 import './styles/primitives.css';
 import './styles/header.css';
 import './styles/landing.css';
+import './styles/landing-carousel.css';
 import './styles/quiz.css';
 import './styles/rating.css';
 import './styles/results.css';
@@ -15,6 +16,7 @@ import './styles/search.css';
 import './styles/credits.css';
 import './styles/settings.css';
 import './styles/effects.css';
+import './styles/cards.css';
 
 import { renderLanding } from './screens/landing';
 import { store } from './lib/store';

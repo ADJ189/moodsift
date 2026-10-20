@@ -1,4 +1,4 @@
-import { completeQuiz, expect, test, toResults } from './fixtures';
+import { completeQuiz, expect, openDisclosure, test, toResults } from './fixtures';
 
 // Regression tests for review findings on the command menu, focus handling,
 // saved looks, compare buttons and the Compare-with-before preview.
@@ -11,7 +11,7 @@ test.describe('command menu → search', () => {
     const input = page.locator('.search-input');
     await expect(input).toBeVisible();
     await page.keyboard.press('Control+k');
-    await page.getByRole('combobox').fill('dune');
+    await page.getByRole('dialog', { name: 'Command menu' }).getByRole('combobox').fill('dune');
     await page.keyboard.press('Enter');
     await expect(input).toHaveValue('dune');
     // leave and reopen: the consumed target must not reappear
@@ -57,6 +57,7 @@ test.describe('appearance drawer focus', () => {
     void mock;
     await page.goto('/');
     await open(page);
+    await page.getByRole('tab', { name: 'Theme' }).click();
     const stops: string[] = [];
     for (let i = 0; i < 80; i++) {
       await page.keyboard.press('Tab');
@@ -71,7 +72,7 @@ test.describe('appearance drawer focus', () => {
     // Tab must have reached the System/Dark/Light group at most once per lap of the drawer
     // (it used to land on all three options each time).
     const modeStops = stops.filter((s) => ['System', 'Dark', 'Light'].includes(s)).length;
-    const laps = stops.filter((s) => s === 'Close appearance settings').length || 1;
+    const laps = stops.filter((s) => s === 'Close settings').length || 1;
     expect(modeStops).toBeLessThanOrEqual(laps + 1);
   });
 
@@ -79,6 +80,8 @@ test.describe('appearance drawer focus', () => {
     void mock;
     await page.goto('/');
     await open(page);
+    await page.getByRole('tab', { name: 'Theme' }).click();
+    await openDisclosure(page, 'Saved looks');
     for (const [name, palette] of [['One', /Forest/], ['Two', /Ember/]] as const) {
       await page.getByRole('radio', { name: palette }).click();
       await page.getByLabel('Name for the new look').fill(name);
@@ -99,6 +102,8 @@ test.describe('appearance drawer focus', () => {
     void mock;
     await page.goto('/');
     await open(page);
+    await page.getByRole('tab', { name: 'Theme' }).click();
+    await openDisclosure(page, 'Saved looks');
     for (const name of ['One', 'Two']) {
       await page.getByLabel('Name for the new look').fill(name);
       await page.getByRole('button', { name: 'Save current look' }).click();

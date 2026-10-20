@@ -1,0 +1,464 @@
+/* Title cards: four structures (data-card-type) × five surface treatments
+   (data-design-style), on top of the existing arrangement (data-results-layout).
+
+   Cascade, in order of authority:
+     1. accessibility + motion attributes (Motion Off, reduced transparency,
+        high contrast) — these always win,
+     2. the user's own layout / label / shape / shadow settings (effects.css),
+     3. card type structure (this file, §2),
+     4. design style decoration (this file, §1) — tokens only, so a style can
+        never hide an action or change what a card says.
+
+   Nothing here changes what is shown beyond hiding secondary text; every
+   action stays a real button reachable by keyboard and touch. */
+
+/* ── 1. Design style tokens ─────────────────────────────────────────── */
+
+:root {
+  --ds-card-bg: var(--surface);
+  --ds-card-border: var(--border);
+  --ds-card-hover-border: var(--border-strong);
+  --ds-card-shadow: var(--shadow-card);
+  --ds-card-hover-shadow: 0 14px 32px rgba(0, 0, 0, 0.2);
+  --ds-panel-bg: var(--bg-1);
+  --ds-panel-border: var(--border-strong);
+  --ds-panel-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  --ds-panel-blur: 0px;
+  --ds-active-bg: var(--state-selected);
+  --ds-active-edge: var(--state-selected-border);
+  --ds-title-font: var(--font-display);
+}
+
+@supports (color: color-mix(in srgb, red, blue)) {
+  /* Cinematic (default): atmospheric surface, restrained accent-tinted glow. */
+  :root[data-design-style='cinematic'] {
+    --ds-card-bg: linear-gradient(180deg, color-mix(in srgb, var(--surface) 90%, var(--violet)) 0%, var(--surface) 60%);
+    --ds-card-hover-border: color-mix(in srgb, var(--violet) 48%, var(--border-strong));
+    --ds-card-hover-shadow: 0 18px 44px -18px color-mix(in srgb, var(--violet) 55%, transparent), 0 10px 26px rgba(0, 0, 0, 0.22);
+    --ds-panel-bg: linear-gradient(180deg, color-mix(in srgb, var(--bg-1) 92%, var(--violet)), var(--bg-1));
+  }
+
+  /* Glass: translucent layers. Alpha stays high so text contrast is
+     decided by the page colour, never by whatever scrolls behind. */
+  :root[data-design-style='glass'] {
+    --ds-card-bg: color-mix(in srgb, var(--surface) 78%, transparent);
+    --ds-card-border: color-mix(in srgb, var(--text-primary) 16%, transparent);
+    --ds-card-hover-border: color-mix(in srgb, var(--text-primary) 34%, transparent);
+    --ds-panel-bg: color-mix(in srgb, var(--bg-1) 84%, transparent);
+    --ds-panel-border: color-mix(in srgb, var(--text-primary) 20%, transparent);
+    --ds-panel-blur: 18px;
+  }
+
+  /* Neon noir: edge light on the focused or hovered card only. */
+  :root[data-design-style='neon-noir'] {
+    --ds-card-bg: color-mix(in srgb, var(--surface) 82%, var(--bg-0));
+    --ds-card-hover-border: var(--violet);
+    --ds-card-hover-shadow: 0 0 0 1px var(--violet), 0 0 22px -4px color-mix(in srgb, var(--violet) 60%, transparent), 0 0 56px -22px color-mix(in srgb, var(--cyan) 55%, transparent);
+    --ds-panel-bg: color-mix(in srgb, var(--bg-1) 90%, var(--bg-0));
+    --ds-panel-border: color-mix(in srgb, var(--violet) 55%, var(--border));
+    --ds-active-bg: color-mix(in srgb, var(--violet) 16%, var(--bg-1));
+    --ds-active-edge: var(--cyan);
+  }
+}
+
+/* Minimal: flat, solid, quiet. Typography and spacing are untouched. */
+:root[data-design-style='minimal'] {
+  --ds-card-bg: var(--surface);
+  --ds-card-shadow: none;
+  --ds-card-hover-shadow: none;
+  --ds-panel-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  --ds-panel-bg: var(--bg-1);
+}
+
+:root[data-design-style='minimal'] .featured,
+:root[data-design-style='minimal'][data-ambience] .featured {
+  box-shadow: none;
+}
+
+:root[data-design-style='minimal'] .featured::before,
+:root[data-design-style='minimal'] .landing::after {
+  display: none;
+  background: none;
+}
+
+/* Film journal: thin rules, a mat around each poster, curated metadata. */
+:root[data-design-style='film-journal'] {
+  --ds-card-bg: var(--bg-1);
+  --ds-card-shadow: none;
+  --ds-card-hover-shadow: none;
+  --ds-panel-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+}
+
+/* Glass falls back to opaque wherever transparency is limited. */
+:root[data-transparency='reduced'][data-design-style='glass'],
+:root[data-contrast='high'][data-design-style='glass'] {
+  --ds-card-bg: var(--surface);
+  --ds-card-border: var(--border);
+  --ds-panel-bg: var(--bg-1);
+  --ds-panel-border: var(--border-strong);
+  --ds-panel-blur: 0px;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-design-style='glass'] {
+    --ds-card-bg: var(--surface);
+    --ds-card-border: var(--border);
+    --ds-panel-bg: var(--bg-1);
+    --ds-panel-border: var(--border-strong);
+    --ds-panel-blur: 0px;
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root[data-design-style='glass'] {
+    --ds-panel-bg: var(--bg-1);
+    --ds-panel-blur: 0px;
+  }
+}
+
+/* High contrast keeps edges, drops decorative light. */
+:root[data-contrast='high'][data-design-style='neon-noir'],
+:root[data-contrast='high'][data-design-style='cinematic'] {
+  --ds-card-hover-shadow: 0 0 0 2px var(--text-primary);
+  --ds-card-hover-border: var(--text-primary);
+}
+
+/* Apply the tokens to every card. Lower-specificity than the user's own
+   Shadows setting (effects.css), which therefore still wins. */
+.result-card {
+  background: var(--ds-card-bg);
+  border-color: var(--ds-card-border);
+  box-shadow: var(--ds-card-shadow);
+}
+
+.result-card:hover,
+.result-card:focus-within {
+  border-color: var(--ds-card-hover-border);
+  box-shadow: var(--ds-card-hover-shadow);
+}
+
+/* The entrance animation must not pin the card's transform afterwards, or
+   hover/focus lift could never apply. The resting state is the natural one. */
+.result-card.stagger-in {
+  opacity: 1;
+  animation-fill-mode: backwards;
+}
+
+.result-title {
+  font-family: var(--ds-title-font);
+}
+
+/* Visible, accent-independent focus ring on every card control. */
+.result-card :focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--bg-0);
+}
+
+:root[data-design-style='film-journal'] .result-card {
+  padding: 8px;
+  gap: 6px;
+}
+
+:root[data-design-style='film-journal'] .result-poster {
+  border-radius: calc(var(--radius-md) - 6px);
+}
+
+:root[data-design-style='film-journal'] .result-body {
+  padding: 10px 6px 6px;
+  gap: 6px;
+}
+
+:root[data-design-style='film-journal'] .result-kind {
+  font-style: italic;
+}
+
+:root[data-design-style='film-journal'] .star-row-sm {
+  border-top: 1px solid var(--border);
+}
+
+/* ── 2. Card anatomy shared by all types ────────────────────────────── */
+
+.result-kind,
+.result-rating {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.3;
+  color: var(--text-secondary);
+}
+
+.result-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+}
+
+.result-rating .icon-inline {
+  color: var(--amber);
+}
+
+.result-synopsis {
+  display: none;
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.result-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.result-actions .watchlist-btn {
+  position: static;
+}
+
+.result-quick-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgba(7, 5, 15, 0.55);
+  border-radius: var(--radius-pill);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  transition: opacity var(--motion-quick) var(--ease-smooth), transform var(--motion-quick) var(--ease-smooth), background var(--dur-fast);
+}
+
+.result-quick-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.result-quick-btn:hover {
+  background: rgba(7, 5, 15, 0.78);
+}
+
+:root[data-transparency='reduced'] .result-quick-btn {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: var(--bg-0);
+}
+
+@media (pointer: coarse) {
+  .result-quick-btn {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* Match badge: the percentage is real text, with "match" for screen readers. */
+.poster-match-badge {
+  pointer-events: none;
+}
+
+/* The one labelled primary action; shown by Editorial only. */
+.result-details-btn {
+  display: none;
+  align-self: flex-start;
+  min-height: 36px;
+  padding: 6px 16px;
+  font-size: 0.8125rem;
+}
+
+/* ── 3. Interactive (default) + Poster gallery: reveal on hover/focus ── */
+
+:root[data-card-type='interactive'] .result-actions .result-quick-btn,
+:root[data-card-type='interactive'] .result-actions .watchlist-btn:not(.active),
+:root[data-card-type='poster'] .result-actions .result-quick-btn,
+:root[data-card-type='poster'] .result-actions .watchlist-btn:not(.active) {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+:root[data-card-type='interactive'] .result-card:hover .result-actions .result-quick-btn,
+:root[data-card-type='interactive'] .result-card:hover .result-actions .watchlist-btn,
+:root[data-card-type='interactive'] .result-card:focus-within .result-actions .result-quick-btn,
+:root[data-card-type='interactive'] .result-card:focus-within .result-actions .watchlist-btn,
+:root[data-card-type='poster'] .result-card:hover .result-actions .result-quick-btn,
+:root[data-card-type='poster'] .result-card:hover .result-actions .watchlist-btn,
+:root[data-card-type='poster'] .result-card:focus-within .result-actions .result-quick-btn,
+:root[data-card-type='poster'] .result-card:focus-within .result-actions .watchlist-btn {
+  opacity: 1;
+  transform: none;
+}
+
+/* Touch: nothing essential waits for a hover that will never come. */
+@media (hover: none) {
+  :root[data-card-type] .result-actions .result-quick-btn,
+  :root[data-card-type] .result-actions .watchlist-btn {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Interactive: a short lift. Poster tilt/glow come from fx.ts and stay
+   governed by their own settings. */
+:root[data-card-type='interactive'] .result-card:hover,
+:root[data-card-type='interactive'] .result-card:focus-within {
+  transform: translateY(-4px) scale(1.015);
+}
+
+@media (hover: none) {
+  :root[data-card-type='interactive'] .result-card:hover,
+  :root[data-card-type='interactive'] .result-card:focus-within {
+    transform: none;
+  }
+}
+
+/* Interactive body: title, type line, rating, match, one short reason. */
+:root[data-card-type='interactive'] .result-reasons li:nth-child(n + 2),
+:root[data-card-type='poster'] .result-reasons li:nth-child(n + 2) {
+  display: none;
+}
+
+/* Poster gallery: artwork first, no overlay at rest, minimal text. */
+:root[data-card-type='poster'] .result-hover-preview,
+:root[data-card-type='poster'] .match-meter,
+:root[data-card-type='poster'] .result-card .chip-row,
+:root[data-card-type='poster'] .result-card .result-reasons {
+  display: none;
+}
+
+:root[data-card-type='poster'] .result-body {
+  padding: 10px 12px 12px;
+  gap: 6px;
+}
+
+/* Editorial: roomier, with a bounded synopsis and the primary action. */
+:root[data-card-type='editorial'] .result-details-btn {
+  display: inline-flex;
+}
+
+:root[data-card-type='editorial'] .match-meter,
+:root[data-card-type='editorial'] .result-card .chip-row {
+  display: none;
+}
+
+:root[data-card-type='editorial'] .result-synopsis {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+:root[data-card-type='editorial'] .result-hover-preview {
+  display: none;
+}
+
+:root[data-card-type='editorial'] .result-reasons li:nth-child(n + 2) {
+  display: none;
+}
+
+:root[data-card-type='editorial'] .result-card {
+  flex-direction: row;
+}
+
+:root[data-card-type='editorial']:not([data-results-layout='list']) .result-card .result-poster {
+  flex: 0 0 40%;
+  aspect-ratio: 2 / 3;
+}
+
+:root[data-card-type='editorial'][data-results-layout='grid'] .results-grid {
+  grid-template-columns: repeat(auto-fill, minmax(max(var(--poster-min), 340px), 1fr));
+  gap: 22px;
+}
+
+:root[data-card-type='editorial'] .result-body {
+  flex: 1;
+  min-width: 0;
+  justify-content: center;
+  padding: 16px 16px 16px 4px;
+  gap: 8px;
+}
+
+:root[data-card-type='editorial'] .result-title {
+  font-size: 1.0625rem;
+}
+
+:root[data-card-type='editorial'][data-results-layout='list'] .result-synopsis {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+@media (max-width: 560px) {
+  :root[data-card-type='editorial'][data-results-layout='grid'] .results-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Compact: small poster, essentials only; watchlist stays visible. */
+:root[data-card-type='compact'] .result-hover-preview,
+:root[data-card-type='compact'] .match-meter,
+:root[data-card-type='compact'] .result-card .chip-row,
+:root[data-card-type='compact'] .result-card .result-reasons,
+:root[data-card-type='compact'] .result-quick-btn {
+  display: none;
+}
+
+:root[data-card-type='compact'][data-results-layout='grid'] .results-grid {
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--poster-min) * 0.72), 1fr));
+  gap: 14px;
+}
+
+:root[data-card-type='compact'] .result-body {
+  padding: 8px 10px 10px;
+  gap: 5px;
+}
+
+:root[data-card-type='compact'] .result-title {
+  font-size: 0.8125rem;
+}
+
+:root[data-card-type='compact'] .result-actions .watchlist-btn {
+  width: 28px;
+  height: 28px;
+}
+
+:root[data-card-type='compact'] .star-row-sm {
+  padding-top: 4px;
+}
+
+:root[data-card-type='compact'] .compare-btn {
+  min-height: 30px;
+  padding: 4px 10px;
+}
+
+@media (max-width: 480px) {
+  /* A stable two-column grid on phones rather than tiny unreadable cards. */
+  :root[data-card-type='compact'][data-results-layout='grid'] .results-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+}
+
+@media (pointer: coarse) {
+  :root[data-card-type='compact'] .result-actions .watchlist-btn {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* ── 4. Motion and effects always win ───────────────────────────────── */
+
+:root[data-motion='off'][data-card-type] .result-card:hover,
+:root[data-motion='off'][data-card-type] .result-card:focus-within {
+  transform: none;
+}
+
+:root[data-motion='off'][data-card-type] .result-actions .result-quick-btn,
+:root[data-motion='off'][data-card-type] .result-actions .watchlist-btn {
+  transform: none;
+  transition: none;
+}

@@ -215,6 +215,7 @@
 :root[data-transparency='reduced'] .poster-match-badge,
 :root[data-transparency='reduced'] .result-hover-preview,
 :root[data-transparency='reduced'] .watchlist-btn,
+:root[data-transparency='reduced'] .result-quick-btn,
 :root[data-transparency='reduced'] .ap-scrim,
 :root[data-transparency='reduced'][data-surface='glass'] .result-card,
 :root[data-transparency='reduced'][data-surface='glass'] .rating-card,

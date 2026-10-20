@@ -2,6 +2,55 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Fixed
+- Keep result card content visible while pointer effects are active in the Minimal design style.
+- Remove the unavailable concept image reference from the visual redesign specification.
+
+## [1.13.0] — Visual direction: card types, design styles, search types, Settings workspace
+
+Implements `docs/visual-redesign-spec.md`, adapted to the 1.12 codebase. Three new, independent, saved choices — **card type**, **design style** and **search type** — change presentation only. They never change what is searched, recommended, scored or stored, and they never override Motion, Reduced transparency, High contrast, text size or the user's own layout settings.
+
+### Added
+- **Card type** (`cardType`): *Interactive* (default — quick actions and a short lift on hover or keyboard focus, always visible on touch), *Poster gallery*, *Editorial* (synopsis + a labelled Details button) and *Compact*. One shared card markup; `data-card-type` + `styles/cards.css` decide what shows. Cards now carry a type/genre line, a TMDB rating **only when TMDB has votes**, a bookmark and an Info quick action, and a text-labelled match badge ("94% match").
+- **Design style** (`designStyle`): *Cinematic* (default), *Minimal*, *Film journal*, *Glass*, *Neon noir*. Pure decoration through `--ds-*` tokens; Glass is solid under Reduced transparency, High contrast and unsupported `backdrop-filter`; Neon noir lights only the hovered or focused card.
+- **Search type** (`searchType`): *Grouped* (default), *Compact*, *Expanded* (with a preview pane) and *Full page* (inline results with All / Movies / TV Shows / People filters showing real counts). Search is now a proper ARIA combobox: `aria-activedescendant`, ↑/↓ wrap, Enter picks, Escape closes and keeps the typed text, "See all results" opens the full view. Loading skeletons, empty and error (with Retry) states; one-character queries make no request; debounce 200 ms; changing the type redraws from cached results with **no new request**. People show an optional "Known for" line taken from the same TMDB response.
+- **Settings workspace** replacing the four-tab drawer: *Overview* (summaries, live mini-previews, four starter presets), *Cards & layout*, *Search*, *Theme*, *Readability*, *Motion & performance*, *AI engine*, *Advanced*. Visual option tiles with fictional-data previews; saved looks, custom accent, advanced effects and model details sit in disclosures; export/import is revealed on demand; reset-all lives in Advanced. On tablets and phones the rail becomes a scrolling category row and the panel a full-height sheet.
+- **Starter presets** — Cinematic, Minimal, Film journal, Performance — write ordinary preferences (undoable, never touching text size, contrast, transparency, AI mode or your motion profile).
+- Section reset for *Search*; *Theme* reset now includes the design style; *Cards & layout* reset includes the card type.
+- `tests/design-options.spec.ts`, new axe scans for every Settings section, search type, card type and design style, and `mockSearchResults()` / `openSettings()` fixtures.
+
+### Changed
+- The dialog is titled **Settings**; the header button keeps its "Appearance settings" label. `openAppearancePanel()` accepts the new section ids and still accepts the old tab names.
+- The poster-wide click target on cards is no longer a tab stop; the title link and the Details/Info action cover keyboard and screen-reader use.
+- Card entrance stagger is 24 ms per card, capped after ten, and no longer pins the card's transform, so hover/focus lift actually applies.
+- Existing tests were updated for the new Settings structure (tab names, disclosures, Advanced-section reset/export/import) and to scope `combobox` lookups to the command menu now that search is a combobox.
+
+### Notes
+- *Minimal* removes decorative glow and shadow; pointer tilt remains governed by **Motion & performance → Poster tilt** (the Minimal and Performance presets turn it off), so an explicit motion choice is never silently overridden.
+- The concept image referenced by the spec (`docs/assets/moodsift-visual-redesign-reference.png`) was not part of the supplied archive.
+
+## [1.12.0] — Landing gallery
+
+### Added
+- **Popular-titles gallery on the landing page.** With a TMDB credential, the hero's static sample card is replaced by a centre-focused poster deck of eight currently popular movies and series (four of each, interleaved, ordered by TMDB popularity). It is clearly labelled *Popular picks · Not personalised* — nothing is scored against your taste, and no match percentage is shown.
+  - **Gestures:** drag or swipe the deck (a card tracks the pointer directly, then settles with a small spring); a drag past ~22% of the gallery width — or a quick flick — moves exactly one title. Vertical movement stays a normal page scroll. Tap a side poster to bring it forward; tap the centre poster or *Explore title* to open it in the existing title-search flow.
+  - **Controls:** previous/next buttons, a dot pager (a labelled button per title), `←` `→` `Home` `End` while focus is inside, and a polite screen-reader announcement ("3 of 8: Title, year, movie"). Inactive posters are hidden from assistive technology and are never tab stops.
+  - **Ambient backdrop:** a blurred, theme-masked backdrop cross-fades behind the deck (poster art as the fallback; plain gradient if neither loads) and never blocks the poster change.
+  - **Idle auto-advance** every ~7 s, with a visible Pause/Resume button. It stops for hover, keyboard focus, drag, a hidden tab, an off-screen gallery, Pause, and reduced motion, and waits ≥ 8 s after any manual interaction.
+  - **Motion:** follows Appearance → Motion *and* `prefers-reduced-motion`, live. Full = tilt, parallax and spring; Subtle = shorter and gentler; Off = no tilt, parallax, rebound or autoplay, with instant changes.
+  - **Cost:** one `/discover` request per media type (two in total, through the existing cached/retrying TMDB client), cancelled if you leave the page; a skeleton with the final footprint reserves the space so nothing shifts.
+  - **Fallbacks:** no TMDB key → no request and the static sample card, exactly as before; request failure or nothing usable → the sample card; a single title → a static card with no dead controls; a missing poster → an initial-letter tile.
+- `getLandingShowcase()` in `src/lib/tmdb.ts`; `chevronRight`, `play` and `pause` icons.
+- `tests/landing-carousel.spec.ts` (data/loading, fallbacks, navigation, keyboard, gestures, touch, motion preferences, autoplay with a paused fake clock, cleanup/cancellation, and a layout matrix from 1440 px to 320 px). `playwright.config.ts` now also serves a second, key-less build so the "no credential → no request" case is tested for real.
+
+### Fixed
+- A mostly-vertical mouse drag that ended over the same poster could still count as a click; any drag, in any direction, now suppresses the click (a plain tap still works).
+
+### Known, unchanged
+- At a 320 px viewport the page header's action buttons extend ~23 px past the viewport edge (pre-existing; not caused by the gallery).
+
 ## [1.11.0] — Moodsift: redesign + rebranding
 
 CineMatch is now **Moodsift** (the old name was too common to be findable). Live at <https://moodsift.adj189.workers.dev/>.

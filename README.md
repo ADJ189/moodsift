@@ -39,6 +39,10 @@ Seven quick questions, a few titles you already know, and a live pull from thous
 - **Precise / Grouped toggle.** Grouped is a wide, forgiving pool (default). Precise holds results to a 68%+ match floor and returns fewer, tighter picks.
 - **Letterboxd import.** Drop in a `ratings.csv` export to skip manual re-rating; the latest import replaces the previous imported library, and ratings you gave in the app are never touched.
 
+### First impression — the landing gallery
+
+- **A real look at what's popular, honestly labelled.** With a TMDB key, the landing page shows a swipeable poster gallery of eight popular movies and series — *popular, not personalised*, and it says so. Drag, swipe, tap, use the arrow buttons or the keyboard; *Explore title* opens the title in the search flow. It auto-advances gently (with a Pause button), respects Reduced Motion, costs two TMDB requests, and falls back to the static sample card with no key or if TMDB is unreachable.
+
 ### Explore — search, cast and where to watch
 
 - **Search a title, see what's actually similar** — or search an actor, director, or other crew and see their best-known work. Results come from TMDB's own recommendation/credit data rather than being re-scored against your quiz answers, since taste isn't the same every session and a title's own data doesn't depend on who's asking.
@@ -60,7 +64,7 @@ Seven quick questions, a few titles you already know, and a live pull from thous
 
 ### Appearance — make it yours
 
-- **Appearance drawer / Theme Studio.** System/Dark/Light, 8 hand-tuned palettes (each with separate, contrast-checked dark and light maps), custom accent, 8 self-hosted font pairings, text size, line spacing, content width, density, poster size, card corners, results layout, motion profile, and particle level. Live preview, undo/redo, up to three saved looks, versioned export/import, and reset (appearance only — never ratings or watchlist).
+- **Settings workspace / Theme Studio** (Overview · Cards & layout · Search · Theme · Readability · Motion & performance · AI engine · Advanced). Pick a **card type** (Interactive, Poster gallery, Editorial, Compact), a **design style** (Cinematic, Minimal, Film journal, Glass, Neon noir) and a **search type** (Grouped, Compact, Expanded, Full page) independently, or start from a preset. These change presentation only. The theme tools: System/Dark/Light, 8 hand-tuned palettes (each with separate, contrast-checked dark and light maps), custom accent, 8 self-hosted font pairings, text size, line spacing, content width, density, poster size, card corners, results layout, motion profile, and particle level. Live preview, undo/redo, up to three saved looks, versioned export/import, and reset (appearance only — never ratings or watchlist).
 - **Command menu** (<kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>K</kbd> or <kbd>/</kbd>) and shortcut help (<kbd>?</kbd>).
 - **Accessible by default.** Keyboard- and screen-reader-operable, axe-tested, WCAG AA text contrast across every palette, and Motion: Off always wins.
 
@@ -68,7 +72,7 @@ Seven quick questions, a few titles you already know, and a live pull from thous
 
 - Turns each result's rule-based reasons into one natural sentence, running entirely in a Web Worker. Picks a model and quantization tier from your device's memory, core count and WebGPU support, and falls through several CDN options and a short, resource-checked list of pinned models until one fully loads and passes a start-up check.
 - No API key; titles, quiz answers, and prompts are not sent for AI processing. Runtime and model downloads still send request metadata, including your IP address, to the download hosts.
-- Choose the priority under Appearance → AI engine (Best quality / Balanced / Fastest / Lightweight data saver). It only rewords the rule-based reasons — ranking stays deterministic. Opt-in, never a dependency.
+- Choose the priority under Settings → AI engine (Best quality / Balanced / Fastest / Lightweight data saver). It only rewords the rule-based reasons — ranking stays deterministic. Opt-in, never a dependency.
 
 ### Privacy
 
@@ -182,7 +186,8 @@ src/
     credits-ui.ts    shared cast/crew row builder
     region.ts        streaming-availability region (manual override → locale guess)
     appearance.ts    mode, palette, font, motion & layout preferences (validated, versioned, local)
-    settings-panel.ts the Appearance drawer / Theme Studio
+    settings-panel.ts the Settings workspace / Theme Studio (previews in settings-previews.ts)
+    card-ui.ts       shared pieces of a title card (type line, rating, quick actions)
     fonts.ts         self-hosted font presets, loaded on demand
     theme.ts, header.ts, icons.ts, toast.ts, command-palette.ts, compare.ts, ambient.ts, artwork.ts
     llm.ts           main-thread wrapper for the on-device AI: timeouts, caching, status
@@ -190,6 +195,7 @@ src/
     ai-policy.ts     pure policy: model catalogue, eligibility, prompt and output checks
     ai-settings.ts   the AI engine mode (own storage key, independent of appearance)
   screens/           landing, quiz, rating, results, search — one module each, lazily loaded except landing
+  components/        landing-carousel.ts — the landing page's popular-titles gallery (Pointer Events + CSS transforms)
   data/              quiz questions, taste-calibration seed titles
 worker/
   index.ts           Cloudflare Worker entry — serves dist/ via the ASSETS binding, handles

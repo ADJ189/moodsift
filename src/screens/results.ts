@@ -13,6 +13,7 @@ import { openAppearancePanel } from '../lib/settings-panel';
 import { historyAsCatalogItems, historyRatingFor, isInWatchlist, recordRating, toggleWatchlist } from '../lib/profile';
 import { keyOf } from '../lib/media-key';
 import { buildStarRow, buildWatchlistButton, paintStars } from '../lib/rating-ui';
+import { buildActionGroup, buildDetailsButton, buildKindLine, buildQuickButton, buildRatingLine, buildSynopsis } from '../lib/card-ui';
 import { showToast } from '../lib/toast';
 import { buildCompareButton, buildCompareTray, clearCompare, openCompareDialog } from '../lib/compare';
 import { extractArtworkPalette } from '../lib/artwork';
@@ -737,10 +738,14 @@ export function renderResults(root: HTMLElement): () => void {
   /** A real <button> stretched over the poster: keyboard-focusable, with
    * a visible focus ring, instead of a click handler on a <div>. */
   function buildOpenButton(item: ScoredItem): HTMLElement {
+    // The poster-wide target is a pointer convenience. Keyboard and assistive
+    // tech use the title link and the Details quick action instead, so a card
+    // never presents three identical tab stops for one destination.
     return el('button', {
       class: 'result-open',
       type: 'button',
-      'aria-label': `Details for ${item.title} (${item.year})`,
+      tabindex: '-1',
+      'aria-hidden': 'true',
       onclick: (e: Event) => openDetailModal(item, e.currentTarget as HTMLElement),
     });
   }
@@ -759,14 +764,19 @@ export function renderResults(root: HTMLElement): () => void {
       fallbackText: item.title.slice(0, 1),
     });
     const chips = buildReasonChips(item);
+    const synopsis = buildSynopsis(item);
+    const rating = buildRatingLine(item);
 
-    return el('article', { class: 'result-card stagger-in', style: `--stagger: ${Math.min(index, 20)}` }, [
+    return el('article', { class: 'result-card stagger-in', style: `--stagger: ${Math.min(index, 10)}` }, [
       el('div', { class: 'result-poster' }, [
         poster,
         buildOpenButton(item),
-        buildWatchlistButton(item),
-        // Hover quick-look: synopsis + ratings, no extra fetch. Pure CSS,
-        // and hidden on touch (a tap opens the full sheet instead).
+        buildActionGroup([
+          buildWatchlistButton(item),
+          buildQuickButton(`Open details for ${item.title} (${item.year})`, (btn) => openDetailModal(item, btn)),
+        ]),
+        // Hover/focus quick-look: synopsis + ratings, no extra fetch. It is a
+        // decorative extra — every action it hints at stays one tap away.
         el('div', { class: 'result-hover-preview', 'aria-hidden': 'true' }, [
           el('p', { class: 'hover-preview-overview' }, [item.overview ? truncate(item.overview, 130) : 'No synopsis available.']),
           (() => {
@@ -775,7 +785,8 @@ export function renderResults(root: HTMLElement): () => void {
             return p;
           })(),
         ]),
-        el('span', { class: 'poster-match-badge', 'data-fit': item.fit }, [`${item.matchPct}%`]),
+        // A genuine quiz match, labelled in text — never colour alone.
+        el('span', { class: 'poster-match-badge', 'data-fit': item.fit }, [`${item.matchPct}%`, el('span', { class: 'visually-hidden' }, [' match'])]),
       ]),
       el('div', { class: 'result-body' }, [
         el('h3', { class: 'result-title' }, [
@@ -783,9 +794,13 @@ export function renderResults(root: HTMLElement): () => void {
             `${item.title} (${item.year})`,
           ]),
         ]),
+        buildKindLine(item),
+        ...(rating ? [rating] : []),
         buildMatchMeter(item),
         ...(chips ? [chips] : []),
+        ...(synopsis ? [synopsis] : []),
         el('ul', { class: 'result-reasons', 'data-reasons': keyOf(item) }, item.reasons.map((r) => el('li', {}, [r]))),
+        buildDetailsButton('Details', `Details for ${item.title} (${item.year})`, (btn) => openDetailModal(item, btn)),
         buildStarRow(item, resultRatings.get(keyOf(item)) ?? historyRatingFor(item), (v) => onRateResult(item, v)),
         buildCompareButton(item, compareFull),
       ]),

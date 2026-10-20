@@ -1,3 +1,4 @@
+import { createLandingCarousel, type LandingCarouselHandle } from '../components/landing-carousel';
 import { applyVibe, markVibeHandled, vibeAlreadyHandled, VIBES } from '../lib/appearance';
 import { el, mount } from '../lib/dom';
 import { openAppearancePanel } from '../lib/settings-panel';
@@ -27,6 +28,7 @@ function buildSampleCard(): HTMLElement {
 export function renderLanding(root: HTMLElement): () => void {
   let destroyed = false;
   let ambient: { destroy(): void } | null = null;
+  let carousel: LandingCarouselHandle | null = null;
 
   const canvas = el('canvas', { class: 'landing-canvas', 'aria-hidden': 'true' });
 
@@ -87,9 +89,35 @@ export function renderLanding(root: HTMLElement): () => void {
       el('div', { class: 'vibe-card-actions' }, [
         el('button', { class: 'btn-text', type: 'button', onclick: () => dismiss(true) }, ['Skip']),
         el('button', { class: 'btn-text', type: 'button', onclick: () => dismiss(false) }, ['Not now']),
-        el('button', { class: 'btn-text', type: 'button', onclick: () => openAppearancePanel('themes') }, ['More options\u2026']),
+        el('button', { class: 'btn-text', type: 'button', onclick: () => openAppearancePanel('theme') }, ['More options\u2026']),
       ]),
     ]);
+  }
+
+  // The hero's visual slot. With a TMDB key it is the live popular-titles
+  // gallery (a skeleton at once; the headline and CTA never wait on it). With
+  // no key — or if the optional request fails or returns nothing usable — it
+  // is the static sample card, exactly as before.
+  let visual: HTMLElement;
+  if (isTmdbConfigured) {
+    carousel = createLandingCarousel({
+      onUnavailable: () => {
+        if (destroyed || !carousel) return;
+        const failed = carousel;
+        carousel = null;
+        // The skeleton is taller than the sample card. In the two-column
+        // layout the copy is vertically centred against it, so swapping would
+        // make the headline and CTA jump; hold the height so they don't. (In
+        // the stacked layout nothing above the gallery moves.)
+        const grid = failed.element.parentElement;
+        if (grid && window.matchMedia('(min-width: 861px)').matches) grid.style.minHeight = `${grid.offsetHeight}px`;
+        failed.element.replaceWith(buildSampleCard());
+        failed.destroy();
+      },
+    });
+    visual = carousel.element;
+  } else {
+    visual = buildSampleCard();
   }
 
   const screen = el('div', { class: 'screen landing' }, [
@@ -113,7 +141,7 @@ export function renderLanding(root: HTMLElement): () => void {
         ...(vibeCard ? [vibeCard] : []),
         ...(warning ? [warning] : []),
       ]),
-      buildSampleCard(),
+      visual,
     ]),
   ]);
 
@@ -137,6 +165,8 @@ export function renderLanding(root: HTMLElement): () => void {
 
   return () => {
     destroyed = true;
+    carousel?.destroy();
+    carousel = null;
     ambient?.destroy();
     ambient = null;
   };
