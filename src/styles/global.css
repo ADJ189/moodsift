@@ -171,7 +171,7 @@ img {
 .stagger-in {
   opacity: 0;
   animation: stagger-in var(--dur-med) var(--ease-smooth) forwards;
-  animation-delay: calc(var(--stagger, 0) * 45ms);
+  animation-delay: calc(var(--stagger, 0) * 24ms);
 }
 
 @keyframes stagger-in {
