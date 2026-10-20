@@ -204,7 +204,7 @@ test.describe('command menu and shortcuts', () => {
     await page.keyboard.press('Control+k');
     const dialog = page.getByRole('dialog', { name: 'Command menu' });
     await expect(dialog).toBeVisible();
-    const input = page.getByRole('combobox');
+    const input = dialog.getByRole('combobox');
     await expect(input).toBeFocused();
     await input.fill('quiz');
     await expect(page.getByRole('option', { name: /Take the quiz/ })).toHaveAttribute('aria-selected', 'true');
@@ -212,7 +212,7 @@ test.describe('command menu and shortcuts', () => {
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
     await page.keyboard.press('Control+k');
-    await page.getByRole('combobox').fill('inception');
+    await dialog.getByRole('combobox').fill('inception');
     await page.keyboard.press('Enter');
     await expect(page.locator('.search-input')).toHaveValue('inception');
   });

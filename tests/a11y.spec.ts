@@ -39,3 +39,56 @@ test('combined high contrast + large text + compact density has no horizontal ov
   await toResults(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
 });
+
+// ── Visual-direction surfaces: settings sections, search types, card types ──
+const serious = (r: Awaited<ReturnType<typeof scan>>) => r.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
+
+test('every settings section has no serious/critical violations (light and dark)', async ({ page, mock }) => {
+  void mock;
+  test.setTimeout(120_000);
+  for (const mode of ['light', 'dark'] as const) {
+    await page.addInitScript((m) => localStorage.setItem('cinematch-appearance:v1', JSON.stringify({ version: 1, mode: m, motion: 'off', particles: 'off' })), mode);
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Appearance settings', exact: true }).click();
+    for (const name of ['Overview', 'Cards & layout', 'Search', 'Theme', 'Readability', 'Motion & performance', 'AI engine', 'Advanced']) {
+      await page.getByRole('tab', { name }).click();
+      await page.waitForTimeout(150);
+      const r = await new AxeBuilder({ page }).include('.appearance-panel').withTags(['wcag2a', 'wcag2aa']).analyze();
+      expect(serious(r), `${mode} · ${name}: ${JSON.stringify(r.violations.map((v) => `${v.id}: ${v.nodes[0]?.html.slice(0, 120)}`))}`).toEqual([]);
+    }
+    await page.keyboard.press('Escape');
+  }
+});
+
+test('each search type has no serious/critical violations', async ({ page, mock }) => {
+  void mock;
+  test.setTimeout(120_000);
+  const { mockSearchResults } = await import('./fixtures');
+  await mockSearchResults(page);
+  for (const searchType of ['grouped', 'compact', 'expanded', 'full-page']) {
+    await page.addInitScript((t) => localStorage.setItem('cinematch-appearance:v1', JSON.stringify({ version: 1, motion: 'off', particles: 'off', searchType: t })), searchType);
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Search for a title', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Search for a title' }).fill('midnight');
+    await page.locator(searchType === 'full-page' ? '.search-full .result-card' : '.search-option').first().waitFor();
+    await page.waitForTimeout(400);
+    const r = await scan(page);
+    expect(serious(r), `${searchType}: ${JSON.stringify(r.violations.map((v) => `${v.id}: ${v.nodes[0]?.html.slice(0, 120)}`))}`).toEqual([]);
+  }
+});
+
+test('each card type and design style has no serious/critical violations', async ({ page, mock }) => {
+  void mock;
+  test.setTimeout(180_000);
+  await page.addInitScript(() => localStorage.setItem('cinematch-appearance:v1', JSON.stringify({ version: 1, motion: 'off', particles: 'off' })));
+  await page.goto('/');
+  await completeQuiz(page);
+  await toResults(page);
+  const set = (a: Record<string, string>) => page.evaluate((x) => Object.entries(x).forEach(([k, v]) => document.documentElement.setAttribute(k, v)), a);
+  for (const [type, style] of [['interactive', 'cinematic'], ['poster', 'minimal'], ['editorial', 'film-journal'], ['compact', 'glass'], ['interactive', 'neon-noir']] as const) {
+    await set({ 'data-card-type': type, 'data-design-style': style });
+    await page.waitForTimeout(300);
+    const r = await scan(page);
+    expect(serious(r), `${type}/${style}: ${JSON.stringify(r.violations.map((v) => `${v.id}: ${v.nodes[0]?.html.slice(0, 120)}`))}`).toEqual([]);
+  }
+});
