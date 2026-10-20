@@ -681,6 +681,7 @@ interface TmdbPersonSearchRaw {
   name: string;
   profile_path: string | null;
   known_for_department: string;
+  known_for?: { title?: string; name?: string }[];
 }
 
 /** Search for a person (actor, director, etc.) by name. Kept separate
@@ -698,7 +699,13 @@ export async function searchPeople(query: string, signal?: AbortSignal): Promise
   );
   return data.results
     .filter((p) => p.known_for_department) // filters out near-empty/junk entries
-    .map((p) => ({ id: p.id, name: p.name, profilePath: p.profile_path, knownForDepartment: p.known_for_department }));
+    .map((p) => {
+      const knownFor = (Array.isArray(p.known_for) ? p.known_for : [])
+        .map((k) => (typeof k.title === 'string' ? k.title : typeof k.name === 'string' ? k.name : ''))
+        .filter(Boolean)
+        .slice(0, 3);
+      return { id: p.id, name: p.name, profilePath: p.profile_path, knownForDepartment: p.known_for_department, ...(knownFor.length ? { knownFor } : {}) };
+    });
 }
 
 interface TmdbCastRaw {

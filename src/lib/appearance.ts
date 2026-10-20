@@ -28,6 +28,12 @@ export type PaletteId =
   | 'monochrome';
 export type MotionProfile = 'system' | 'full' | 'subtle' | 'off';
 export type ParticleLevel = 'off' | 'subtle' | 'balanced' | 'interactive';
+/** Structure of each title card (see styles/cards.css). */
+export type CardType = 'interactive' | 'poster' | 'editorial' | 'compact';
+/** Shared surface treatment — border, glow and decorative language. */
+export type DesignStyle = 'cinematic' | 'minimal' | 'film-journal' | 'glass' | 'neon-noir';
+/** How live search suggestions are presented. Never changes what is searched. */
+export type SearchType = 'grouped' | 'compact' | 'expanded' | 'full-page';
 
 export interface AppearancePreferences {
   version: 1;
@@ -45,6 +51,10 @@ export interface AppearancePreferences {
   transparency: 'standard' | 'reduced';
   motion: MotionProfile;
   particles: ParticleLevel;
+  // Visual direction — three independent presentation choices.
+  cardType: CardType;
+  designStyle: DesignStyle;
+  searchType: SearchType;
   // Layout extras
   resultLayout: 'grid' | 'list' | 'spotlight';
   shadows: 'minimal' | 'standard' | 'expressive';
@@ -98,6 +108,9 @@ export const DEFAULT_PREFERENCES: AppearancePreferences = {
   transparency: 'standard',
   motion: 'system',
   particles: 'balanced',
+  cardType: 'interactive',
+  designStyle: 'cinematic',
+  searchType: 'grouped',
   resultLayout: 'grid',
   shadows: 'standard',
   grain: 'subtle',
@@ -146,6 +159,9 @@ const FIELD_OPTIONS = {
   transparency: ['standard', 'reduced'],
   motion: ['system', 'full', 'subtle', 'off'],
   particles: ['off', 'subtle', 'balanced', 'interactive'],
+  cardType: ['interactive', 'poster', 'editorial', 'compact'],
+  designStyle: ['cinematic', 'minimal', 'film-journal', 'glass', 'neon-noir'],
+  searchType: ['grouped', 'compact', 'expanded', 'full-page'],
   resultLayout: ['grid', 'list', 'spotlight'],
   shadows: ['minimal', 'standard', 'expressive'],
   grain: ['off', 'subtle'],
@@ -396,6 +412,9 @@ export function applyPreferences(p: AppearancePreferences = prefs): void {
   root.setAttribute('data-transparency', p.transparency);
   root.setAttribute('data-motion', effectiveMotion(p));
   root.setAttribute('data-results-layout', p.resultLayout);
+  root.setAttribute('data-card-type', p.cardType);
+  root.setAttribute('data-design-style', p.designStyle);
+  root.setAttribute('data-search-type', p.searchType);
   root.setAttribute('data-shadows', p.shadows);
   root.setAttribute('data-grain', p.grain);
   root.setAttribute('data-labels', p.posterLabels);
@@ -468,12 +487,13 @@ export function updatePreferences(patch: Partial<Omit<AppearancePreferences, 've
   commit(merged, opts);
 }
 
-export type ResetSection = 'themes' | 'typography' | 'layout' | 'motion' | 'accessibility';
+export type ResetSection = 'themes' | 'typography' | 'layout' | 'search' | 'motion' | 'accessibility';
 
 const SECTION_KEYS: Record<ResetSection, (keyof AppearancePreferences)[]> = {
-  themes: ['mode', 'palette', 'customAccent'],
+  themes: ['mode', 'palette', 'customAccent', 'designStyle'],
   typography: ['fontPreset', 'textScale', 'lineSpacing'],
-  layout: ['contentWidth', 'density', 'posterSize', 'cardShape', 'surfaceStyle', 'resultLayout', 'shadows', 'grain', 'posterLabels'],
+  layout: ['contentWidth', 'density', 'posterSize', 'cardShape', 'surfaceStyle', 'cardType', 'resultLayout', 'shadows', 'grain', 'posterLabels'],
+  search: ['searchType'],
   motion: ['motion', 'particles', 'particleDensity', 'connections', 'pointerResponse', 'clickPulse', 'posterTilt', 'hoverGlow', 'transitionIntensity', 'artworkAmbience'],
   accessibility: ['contrast', 'transparency'],
 };
@@ -610,6 +630,69 @@ export function applyVibe(id: Vibe['id']): void {
   markVibeHandled(id);
 }
 
+
+// ── Starter presets (Settings → Overview) ─────────────────────────────
+// Convenience actions, not modes: each one writes ordinary preference
+// values, after which every field can still be changed on its own. They
+// never touch text size, contrast, transparency, AI mode or any personal data.
+
+export interface StarterPreset {
+  id: 'cinematic' | 'minimal' | 'film-journal' | 'performance';
+  label: string;
+  blurb: string;
+  patch: Partial<AppearancePreferences>;
+}
+
+export const STARTER_PRESETS: StarterPreset[] = [
+  {
+    id: 'cinematic',
+    label: 'Cinematic',
+    blurb: 'Interactive cards, cinematic design, grouped search.',
+    patch: { cardType: 'interactive', designStyle: 'cinematic', searchType: 'grouped', resultLayout: 'grid' },
+  },
+  {
+    id: 'minimal',
+    label: 'Minimal',
+    blurb: 'Compact cards, flat surfaces, quiet effects.',
+    patch: {
+      cardType: 'compact', designStyle: 'minimal', searchType: 'compact', resultLayout: 'grid',
+      posterLabels: 'essential', posterTilt: 'off', hoverGlow: 'off', artworkAmbience: 'off', shadows: 'minimal',
+    },
+  },
+  {
+    id: 'film-journal',
+    label: 'Film journal',
+    blurb: 'Editorial cards, journal typography, roomy layout.',
+    patch: {
+      cardType: 'editorial', designStyle: 'film-journal', searchType: 'expanded', resultLayout: 'grid',
+      density: 'comfortable', posterSize: 'large', posterLabels: 'detailed',
+    },
+  },
+  {
+    id: 'performance',
+    label: 'Performance',
+    blurb: 'Light on effects for older or low-power devices.',
+    patch: {
+      cardType: 'compact', designStyle: 'minimal', searchType: 'compact', resultLayout: 'grid',
+      posterTilt: 'off', hoverGlow: 'off', artworkAmbience: 'off', shadows: 'minimal', grain: 'off',
+      particles: 'off', transitionIntensity: 'minimal',
+    },
+  },
+];
+
+/** Applies a starter preset as one undoable change. A preset may ask for
+ * less motion but never forces motion on: the Motion profile is left alone. */
+export function applyStarterPreset(id: StarterPreset['id']): void {
+  const preset = STARTER_PRESETS.find((x) => x.id === id);
+  if (!preset) return;
+  updatePreferences({ ...preset.patch }, { immediate: true });
+}
+
+/** The preset whose every value matches the current preferences, if any. */
+export function matchingStarterPreset(p: AppearancePreferences = prefs): StarterPreset['id'] | null {
+  const hit = STARTER_PRESETS.find((x) => Object.entries(x.patch).every(([k, v]) => (p as unknown as Record<string, unknown>)[k] === v));
+  return hit ? hit.id : null;
+}
 
 // ── Compare / restore (Theme Studio) ──────────────────────────────────
 

@@ -152,6 +152,9 @@ export interface PersonSummary {
   name: string;
   profilePath: string | null;
   knownForDepartment: string;
+  /** Titles TMDB lists as this person's best known, from the same search
+   * response (no extra request). Absent when TMDB sends none. */
+  knownFor?: string[];
 }
 
 export interface PersonDetails extends PersonSummary {
