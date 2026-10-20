@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Fixed
+- Keep result card content visible while pointer effects are active in the Minimal design style.
+- Remove the unavailable concept image reference from the visual redesign specification.
+
 ## [1.13.0] — Visual direction: card types, design styles, search types, Settings workspace
 
 Implements `docs/visual-redesign-spec.md`, adapted to the 1.12 codebase. Three new, independent, saved choices — **card type**, **design style** and **search type** — change presentation only. They never change what is searched, recommended, scored or stored, and they never override Motion, Reduced transparency, High contrast, text size or the user's own layout settings.

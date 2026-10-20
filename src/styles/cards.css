@@ -76,8 +76,7 @@
 }
 
 :root[data-design-style='minimal'] .featured::before,
-:root[data-design-style='minimal'] .landing::after,
-:root[data-design-style='minimal'] .result-card.fx-active .result-body {
+:root[data-design-style='minimal'] .landing::after {
   display: none;
   background: none;
 }

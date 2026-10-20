@@ -2,7 +2,6 @@
 
 **Status:** Approved visual direction; implementation specification  
 **Applies to:** Moodsift v1.11.x  
-**Primary reference:** `docs/assets/moodsift-visual-redesign-reference.png`  
 **Implementation style:** Preserve the existing framework-free TypeScript + Vite architecture.
 
 ## 1. Goal
@@ -43,12 +42,6 @@ Keep these responsibilities. Do not migrate to React or add a UI framework just 
 6. **Real data only.** Do not invent ratings, match percentages, watch providers, trailers, seasons, or synopsis text. If a field is unavailable, omit it or show a neutral fallback.
 7. **Accessible without hover.** Any essential action or information hidden during mouse hover must remain reachable by keyboard and touch.
 8. **Fast by default.** Animate `transform` and `opacity` where possible. Avoid repeated layout reads, heavy filters, and extra network calls per card.
-
-### Visual reference
-
-The concept image is direction-setting, not a pixel-exact asset or a source of real catalog data. Recreate the layout and interaction language with real Moodsift data and the existing theme tokens.
-
-![Moodsift approved visual direction](assets/moodsift-visual-redesign-reference.png)
 
 ## 4. Terminology and preference model
 
