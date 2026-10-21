@@ -11,6 +11,8 @@
 
 import { AI_MODE_OPTIONS, getAiMode, isAiModePersisted, setAiMode, subscribeAiMode } from './ai-settings';
 import { MODELS } from './ai-policy';
+import { buildDiagnosticCard } from './ai-diagnostics-ui';
+import { buildTasteMemoryCard } from './taste-memory-ui';
 import { trapFocus } from './a11y';
 import {
   accentForeground,
@@ -58,7 +60,7 @@ import { ICON } from './icons';
 import { cardPreview, layoutPreview, searchPreview, stylePreview } from './settings-previews';
 import { showToast } from './toast';
 
-export type SettingsSection = 'overview' | 'cards' | 'search' | 'theme' | 'readability' | 'motion' | 'ai' | 'advanced';
+export type SettingsSection = 'overview' | 'cards' | 'search' | 'theme' | 'readability' | 'motion' | 'ai' | 'memory' | 'advanced';
 /** Names used before the workspace redesign; still accepted by callers. */
 type LegacyTab = 'themes' | 'typography' | 'layout' | 'accessibility';
 const LEGACY: Record<LegacyTab, SettingsSection> = { themes: 'theme', typography: 'readability', layout: 'cards', accessibility: 'readability' };
@@ -71,6 +73,7 @@ const SECTIONS: { id: SettingsSection; label: string }[] = [
   { id: 'readability', label: 'Readability' },
   { id: 'motion', label: 'Motion & performance' },
   { id: 'ai', label: 'AI engine' },
+  { id: 'memory', label: 'Taste memory' },
   { id: 'advanced', label: 'Advanced' },
 ];
 
@@ -781,6 +784,9 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
       Object.values(MODELS).map((m) => el('li', {}, [`${m.label}: about ${m.webgpu.approxMb} MB (WebGPU) / ${m.wasm.approxMb} MB (WASM)`]))
     );
 
+    const diagnostics = buildDiagnosticCard();
+    aiModeUnsubscribers.push(diagnostics.destroy);
+
     return el('div', { class: 'ap-section' }, [
       el('div', { class: 'setting' }, [
         el('div', { class: 'setting-label' }, ['AI engine']),
@@ -791,6 +797,7 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
         detail,
         saved,
       ]),
+      diagnostics.node,
       disclosure('Model details', [
         el('div', { class: 'setting' }, [
           el('div', { class: 'setting-label' }, ['Approximate download sizes']),
@@ -890,6 +897,15 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
     ]);
   }
 
+  // ── Taste memory ────────────────────────────────────────────────────
+  // Not appearance: the stored ratings/watchlist are managed separately
+  // (profile.ts) and are untouched by appearance undo/redo, looks and reset.
+  function memoryPane(): HTMLElement {
+    const card = buildTasteMemoryCard();
+    aiModeUnsubscribers.push(card.destroy);
+    return card.node;
+  }
+
   // ── shell ───────────────────────────────────────────────────────────
 
   const panes: Record<SettingsSection, () => HTMLElement> = {
@@ -900,6 +916,7 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
     readability: readabilityPane,
     motion: motionPane,
     ai: aiPane,
+    memory: memoryPane,
     advanced: advancedPane,
   };
 
@@ -951,7 +968,7 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
     }
     if (id === 'readability') primeFonts();
     // The Compare/Restore row describes appearance only.
-    studioRow.style.display = id === 'ai' ? 'none' : 'flex';
+    studioRow.style.display = id === 'ai' || id === 'memory' ? 'none' : 'flex';
     runSync();
     if (focusTab) tabButtons.find((t) => t.id === id)?.b.focus({ preventScroll: true });
   }

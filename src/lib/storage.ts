@@ -21,3 +21,23 @@ export function safeSet(key: string, value: string): boolean {
     return false;
   }
 }
+
+export function safeRemove(key: string): boolean {
+  try {
+    localStorage.removeItem(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** True when localStorage can be touched at all. Distinguishes "storage is
+ * blocked" (private mode / disabled) from "the last write failed" (quota). */
+export function storageAccessible(): boolean {
+  try {
+    localStorage.getItem('__moodsift_probe__');
+    return true;
+  } catch {
+    return false;
+  }
+}

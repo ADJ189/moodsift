@@ -28,6 +28,8 @@
 
 import { cleanField, MAX_REASON_CHARS, MAX_REASONS, MAX_SUMMARY_CHARS, MAX_TITLE_CHARS } from './ai-policy';
 import { getAiMode, subscribeAiMode } from './ai-settings';
+import { classifyFailure, type DiagnosticResult } from './ai-diagnostics';
+import type { OutMsg as WorkerOutMsg } from './ai-engine';
 import { keyOf } from './media-key';
 import type { ScoredItem } from './types';
 
@@ -45,21 +47,18 @@ const LOAD_HARD_TIMEOUT_MS = 20 * 60_000;
 const GENERATE_TIMEOUT_MS = 30_000;
 const CACHE_MAX_ENTRIES = 150;
 
-type WorkerOutMsg =
-  | { type: 'stage'; stage: 'detecting' | 'runtime' | 'downloading' | 'initializing' | 'verifying'; model?: string; approxMb?: number }
-  | { type: 'progress'; pct: number; model?: string }
-  | { type: 'activity' }
-  | { type: 'ready'; model: string; backend: 'webgpu' | 'wasm'; dtype: string; approxMb: number }
-  | { type: 'error'; message: string }
-  | { type: 'started'; id: number }
-  | { type: 'result'; id: number; text: string | null };
-
 let worker: Worker | null = null;
 let status: Exclude<LlmStatus, 'disabled'> = 'unavailable';
 let statusDetail = '';
 let stageText = '';
 let activeModelKey = '';
 let nextRequestId = 1;
+
+// "Test on this device" state. The diagnostic reuses this exact worker, mode,
+// candidate policy and start-up checks; it only adds reporting on top.
+let lastResult: DiagnosticResult | null = null;
+let diagnosing = false;
+let diagCancelled = false;
 
 let loadingPromise: Promise<void> | null = null;
 let loadSettle: { resolve: () => void; reject: (e: Error) => void } | null = null;
@@ -171,8 +170,26 @@ function armIdleTimer(): void {
   );
 }
 
-function failLoad(message: string): void {
+function failLoad(message: string, result?: DiagnosticResult): void {
   clearLoadTimers();
+  lastResult =
+    result ??
+    ({
+      outcome: 'failed',
+      mode: getAiMode(),
+      eligible: [],
+      attempts: [
+        {
+          key: 'worker',
+          label: 'On-device AI',
+          ok: false,
+          stage: 'download',
+          kind: classifyFailure({ stage: 'download', message, offline: typeof navigator !== 'undefined' && navigator.onLine === false }),
+          message,
+        },
+      ],
+      summary: message,
+    } satisfies DiagnosticResult);
   dropWorker();
   status = 'error';
   statusDetail = message;
@@ -190,6 +207,7 @@ function resetEngine(): void {
   dropWorker();
   const settle = loadSettle;
   loadSettle = null;
+  loadingPromise = null;
   status = 'unavailable';
   statusDetail = '';
   stageText = '';
@@ -225,8 +243,12 @@ function stageLabel(msg: Extract<WorkerOutMsg, { type: 'stage' }>): string {
       return typeof msg.approxMb === 'number' ? `Downloading ${model} (about ${msg.approxMb} MB)…` : `Downloading ${model}…`;
     case 'initializing':
       return `Starting ${model}…`;
+    case 'integrity':
+      return `Checking the integrity of ${model}…`;
     case 'verifying':
       return `Running a quick check on ${model}…`;
+    case 'quality':
+      return `Running the format checks on ${model}…`;
   }
 }
 
@@ -256,6 +278,7 @@ function onWorkerMessage(w: Worker, msg: WorkerOutMsg): void {
       status = 'ready';
       stageText = '';
       activeModelKey = `${msg.model}:${msg.backend}:${msg.dtype}`;
+      lastResult = msg.result;
       const backend = msg.backend === 'webgpu' ? 'WebGPU' : 'WASM (CPU)';
       statusDetail = `On-device model: ${msg.model} · ${backend} · ${msg.dtype} · about ${msg.approxMb} MB of model weights`;
       const settle = loadSettle;
@@ -266,7 +289,7 @@ function onWorkerMessage(w: Worker, msg: WorkerOutMsg): void {
     }
     case 'error':
       if (status !== 'loading') return;
-      failLoad(msg.message || "This browser can't run the on-device model.");
+      failLoad(msg.message || "This browser can't run the on-device model.", msg.result);
       return;
     case 'started':
       clearGenTimer();
@@ -320,9 +343,9 @@ function getWorker(): Worker {
  * Transformers.js or downloading anything. It also resolves (without being
  * ready) if the mode changes mid-load — read getLlmStatus() afterwards.
  */
-export async function enableLocalAi(): Promise<void> {
+export async function enableLocalAi(diagnoseOptions?: { quality: boolean }): Promise<void> {
   if (getAiMode() === 'lightweight') return;
-  if (status === 'ready') return;
+  if (status === 'ready' && !diagnoseOptions) return;
   if (loadingPromise) return loadingPromise;
 
   status = 'loading';
@@ -350,12 +373,69 @@ export async function enableLocalAi(): Promise<void> {
       () => failLoad('Loading the on-device model took too long. Try again on a faster connection.'),
       LOAD_HARD_TIMEOUT_MS
     );
-    w.postMessage({ type: 'load', mode: getAiMode(), coarsePointer });
+    w.postMessage({ type: 'load', mode: getAiMode(), coarsePointer, ...(diagnoseOptions ? { diagnose: diagnoseOptions } : {}) });
   }).finally(() => {
-    loadingPromise = null;
+    // Only clear our own entry: a cancelled load must not wipe a newer one.
+    if (loadingPromise === promise) loadingPromise = null;
   });
   loadingPromise = promise;
   return promise;
+}
+
+// ── diagnostics ─────────────────────────────────────────────────────────
+
+/** The most recent diagnostic / load outcome for the current mode (or null). */
+export function getLastDiagnostic(): DiagnosticResult | null {
+  return lastResult;
+}
+
+export function isDiagnosing(): boolean {
+  return diagnosing;
+}
+
+/**
+ * "Test on this device". Starts a FRESH worker in the current AI mode and runs
+ * the same load path as normal use (policy → runtime → candidate → integrity →
+ * real start-up → smoke inference), plus an optional format check. A pass
+ * leaves the model loaded, exactly as turning on on-device AI would. Never
+ * throws: a failure is returned as a result, and normal rule-based
+ * recommendations are unaffected. Resolves `null` if cancelled.
+ */
+export async function runDiagnostics(opts: { quality: boolean } = { quality: false }): Promise<DiagnosticResult | null> {
+  if (diagnosing) return null;
+  if (getAiMode() === 'lightweight') {
+    lastResult = {
+      outcome: 'disabled',
+      mode: 'lightweight',
+      eligible: [],
+      attempts: [],
+      summary: 'Local inference is intentionally disabled in Lightweight / data saver mode. Nothing was downloaded or started.',
+    };
+    notify();
+    return lastResult;
+  }
+  diagnosing = true;
+  diagCancelled = false;
+  lastResult = null;
+  resetEngine(); // a fresh worker, so this is a real cold start
+  notify();
+  try {
+    await enableLocalAi(opts);
+  } catch {
+    // failLoad already stored a result describing the failure.
+  } finally {
+    diagnosing = false;
+    notify();
+  }
+  return diagCancelled ? null : lastResult;
+}
+
+/** Stops a running diagnostic (terminating any download) and returns to "not tested". */
+export function cancelDiagnostics(): void {
+  if (!diagnosing) return;
+  diagCancelled = true;
+  lastResult = null;
+  resetEngine();
 }
 
 // ── generation ──────────────────────────────────────────────────────────
@@ -431,4 +511,7 @@ export async function explainPick(item: ScoredItem, quizSummary: string): Promis
 
 // Changing the AI engine mode discards whatever is loaded or loading and
 // starts clean, so the new priority policy always applies to the next load.
-subscribeAiMode(() => resetEngine());
+subscribeAiMode(() => {
+  lastResult = null;
+  resetEngine();
+});
