@@ -1061,3 +1061,109 @@
 .ap-mini .pv-card .pv-poster {
   max-width: 56px;
 }
+
+/* ── Local AI "Test on this device" card (v1.13.5) ─────────────────────── */
+.ai-diag-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.ai-diag-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.ai-diag-status {
+  margin: 6px 0 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ai-diag-status[data-state='passed'],
+.ai-diag-status[data-state='passed-fallback'] {
+  color: var(--green, var(--text-primary));
+}
+
+.ai-diag-status[data-state='failed'] {
+  color: var(--amber);
+}
+
+.ai-diag-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 8px 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.ai-diag-facts dt {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ai-diag-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.ai-diag-problem,
+.ai-diag-advice {
+  margin: 8px 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.ai-diag-problem:empty,
+.ai-diag-advice:empty,
+.ai-diag-stage[hidden] {
+  display: none;
+}
+
+@media (max-width: 480px) {
+  .ai-diag-facts {
+    grid-template-columns: 1fr;
+  }
+  .ai-diag-facts dd {
+    margin-bottom: 6px;
+  }
+}
+
+/* ── Taste memory card (v1.13.5) ───────────────────────────────────────── */
+.tm-status {
+  margin: 6px 0 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.tm-status[data-state='session'],
+.tm-status[data-state='unavailable'] {
+  color: var(--amber);
+}
+.tm-switch {
+  appearance: none;
+  border: 1px solid var(--border, currentColor);
+  background: transparent;
+  color: var(--text-primary);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.tm-switch[aria-checked='true'] {
+  background: var(--accent, #a78bfa);
+  color: var(--accent-fg, #111);
+  border-color: transparent;
+}
+.tm-preview:empty {
+  display: none;
+}
