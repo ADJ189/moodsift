@@ -401,7 +401,8 @@ export function isDiagnosing(): boolean {
  * throws: a failure is returned as a result, and normal rule-based
  * recommendations are unaffected. Resolves `null` if cancelled.
  */
-export async function runDiagnostics(opts: { quality: boolean } = { quality: false }): Promise<DiagnosticResult | null> {
+export async function runDiagnostics(opts?: { quality: boolean }): Promise<DiagnosticResult | null> {
+  const options = opts ?? { quality: false };
   if (diagnosing) return null;
   if (getAiMode() === 'lightweight') {
     lastResult = {
@@ -420,7 +421,7 @@ export async function runDiagnostics(opts: { quality: boolean } = { quality: fal
   resetEngine(); // a fresh worker, so this is a real cold start
   notify();
   try {
-    await enableLocalAi(opts);
+    await enableLocalAi(options);
   } catch {
     // failLoad already stored a result describing the failure.
   } finally {

@@ -311,7 +311,7 @@ export function createIntegrityTracker(opts: TrackerOptions): IntegrityTracker {
           continue;
         }
         if (!cached) continue;
-        const declared = Number(cached.headers.get('content-length') ?? NaN);
+        const declared = Number(cached.headers.get('content-length') ?? Number.NaN);
         const rec = await store.get(key(repo, revision, f.path));
         const sizeBad = Number.isFinite(declared) && declared !== f.size;
         const recordBad = rec !== null && (rec.sha256 !== f.sha256 || rec.size !== f.size);

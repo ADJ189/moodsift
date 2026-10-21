@@ -250,7 +250,7 @@ export function browserFamily(ua: string): string {
     pick(/OPR\/(\d+)/, 'Opera') ??
     pick(/Firefox\/(\d+)/, 'Firefox') ??
     pick(/(?:Chrome|CriOS)\/(\d+)/, 'Chrome') ??
-    pick(/Version\/(\d+).*Safari/, 'Safari') ??
+    (ua.includes('Safari') ? pick(/Version\/(\d+)/, 'Safari') : null) ??
     'Unknown browser'
   );
 }
