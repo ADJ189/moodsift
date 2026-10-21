@@ -84,7 +84,7 @@ test.describe('profile codec', () => {
       JSON.stringify(legacy(0)),
       JSON.stringify(legacy(25)),
       JSON.stringify(legacy(2000)),
-      JSON.stringify({ displayName: 'Zoë 😀 日本語 \u202e ‮ \u0000 tab\there', n: [1.5, -0, 1e21], s: '"quotes" \\ back' }),
+      JSON.stringify({ displayName: 'Zoë 😀 日本語 \u202e \u202e \u0000 tab\there', n: [1.5, -0, 1e21], s: '"quotes" \\ back' }),
       JSON.stringify({ big: 'ab'.repeat(500_000) }),
     ];
     for (const json of cases) {
