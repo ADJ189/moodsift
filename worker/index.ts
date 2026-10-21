@@ -35,6 +35,9 @@ export interface Env {
   // commented example). When present, /api/recommend is limited per client
   // IP; when absent the route still works, guarded by the other checks.
   RECOMMEND_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
+  // Opt-in escape hatch: allow the route with only the per-isolate fallback
+  // limiter (see handleRecommend). Leave unset in production.
+  ALLOW_UNSHARED_LIMIT?: string;
   AI?: {
     run(
       model: string,
@@ -77,11 +80,37 @@ const JSON_HEADERS: Record<string, string> = {
 // images keep working without every third-party host having to send a
 // Cross-Origin-Resource-Policy header. Browsers without support (Safari)
 // simply stay un-isolated and the on-device AI uses single-threaded WASM.
+// Content-Security-Policy (v1.13.5). Two headers on purpose:
+//   - ENFORCED: only `frame-ancestors 'self'` (clickjacking protection). It
+//     cannot break scripts, fetches or images, so it is safe to enforce today.
+//   - REPORT-ONLY: the full policy below. Browsers log violations to the
+//     console without blocking anything, so the policy can be checked against
+//     real traffic (on-device AI CDNs, model hosts, TMDB/OMDb) and then
+//     promoted to enforced in a later release. It was NOT enforced here
+//     because it could not be validated in a real browser during this update.
+// 'unsafe-inline' for scripts/styles remains while the HTML bootstrap script
+// is inline; the follow-up is a nonce/hash or moving it to a local file.
+const CSP_REPORT_ONLY = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://esm.sh https://cdn.jsdelivr.net https://fastly.jsdelivr.net https://unpkg.com",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https://image.tmdb.org",
+  "font-src 'self' data:",
+  "worker-src 'self' blob:",
+  "connect-src 'self' https://api.themoviedb.org https://www.omdbapi.com https://huggingface.co https://*.huggingface.co https://*.hf.co https://esm.sh https://cdn.jsdelivr.net https://fastly.jsdelivr.net https://unpkg.com",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'self'",
+].join('; ');
+
 const ISOLATION_HEADERS: Record<string, string> = {
   'Cross-Origin-Opener-Policy': 'same-origin',
   'Cross-Origin-Embedder-Policy': 'credentialless',
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Content-Security-Policy': "frame-ancestors 'self'",
+  'Content-Security-Policy-Report-Only': CSP_REPORT_ONLY,
 };
 
 const MAX_BODY_BYTES = 16 * 1024;
@@ -163,12 +192,15 @@ const cleanTags = (v: unknown): string[] | null => {
  * match the expected shape is rejected rather than "best-effort" accepted. */
 function parseRequest(raw: unknown): RecommendRequestBody | null {
   if (!isRecord(raw) || !Array.isArray(raw.candidates)) return null;
+  // Over-limit requests are rejected, not silently truncated: a caller that
+  // sends 41 candidates must not get a 40-item ranking back as if it were whole.
+  if (raw.candidates.length > MAX_CANDIDATES) return null;
   const prefs = raw.preferencesSummary === undefined ? '' : cleanText(raw.preferencesSummary, MAX_PREFS_CHARS);
   if (prefs === null) return null;
 
   const candidates: CandidateSummary[] = [];
   const seen = new Set<number>();
-  for (const c of raw.candidates.slice(0, MAX_CANDIDATES)) {
+  for (const c of raw.candidates) {
     if (!isRecord(c)) return null;
     const id = c.id;
     const title = cleanText(c.title, MAX_TITLE_CHARS);
@@ -210,6 +242,12 @@ async function readBodyCapped(request: Request, maxBytes: number): Promise<strin
 
 async function handleRecommend(request: Request, env: Env): Promise<Response> {
   if (!env.AI) return json({ error: 'Not available.' }, 503);
+  // Fail closed: the route is unauthenticated and the `Origin` check is not
+  // authentication (non-browser clients simply omit it), so the only real
+  // quota protection is the shared Cloudflare rate-limit binding. A per-isolate
+  // in-memory counter is not an aggregate limit. Without the shared binding
+  // the route stays off unless explicitly allowed with ALLOW_UNSHARED_LIMIT=true.
+  if (!env.RECOMMEND_LIMITER && env.ALLOW_UNSHARED_LIMIT !== 'true') return json({ error: 'Not available.' }, 503);
 
   const clientKey = request.headers.get('CF-Connecting-IP') ?? 'anonymous';
   if (env.RECOMMEND_LIMITER) {
