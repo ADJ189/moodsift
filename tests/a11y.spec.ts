@@ -50,7 +50,7 @@ test('every settings section has no serious/critical violations (light and dark)
     await page.addInitScript((m) => localStorage.setItem('cinematch-appearance:v1', JSON.stringify({ version: 1, mode: m, motion: 'off', particles: 'off' })), mode);
     await page.goto('/');
     await page.getByRole('button', { name: 'Appearance settings', exact: true }).click();
-    for (const name of ['Overview', 'Cards & layout', 'Search', 'Theme', 'Readability', 'Motion & performance', 'AI engine', 'Advanced']) {
+    for (const name of ['Overview', 'Cards & layout', 'Search', 'Theme', 'Readability', 'Motion & performance', 'AI engine', 'Taste memory', 'Advanced']) {
       await page.getByRole('tab', { name }).click();
       await page.waitForTimeout(150);
       const r = await new AxeBuilder({ page }).include('.appearance-panel').withTags(['wcag2a', 'wcag2aa']).analyze();

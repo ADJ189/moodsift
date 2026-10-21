@@ -51,13 +51,16 @@ test.describe('appearance', () => {
       }
     });
     await page.goto('/');
-    const before = await page.evaluate(() => localStorage.getItem('cinematch.profile.v1'));
+    // The legacy v1 seed is migrated to the compressed v2 record on first load;
+    // appearance changes must leave that stored record byte-for-byte alone.
+    const before = await page.evaluate(() => localStorage.getItem('cinematch.profile.v2'));
+    expect(before).toContain('MOODPROFILE|2|');
     await openSettings(page, 'Theme');
     await page.getByRole('radio', { name: /Velvet Rose/ }).click();
     await page.getByRole('tab', { name: 'Advanced' }).click();
     await page.getByRole('button', { name: 'Reset all appearance' }).click();
     await expect(page.locator('html')).toHaveAttribute('data-palette', 'aurora');
-    expect(await page.evaluate(() => localStorage.getItem('cinematch.profile.v1'))).toBe(before);
+    expect(await page.evaluate(() => localStorage.getItem('cinematch.profile.v2'))).toBe(before);
   });
 
   test('settings work by keyboard; Escape closes and focus returns', async ({ page, mock }) => {
