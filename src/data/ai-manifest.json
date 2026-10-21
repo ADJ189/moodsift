@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "generatedAt": null,
+  "note": "Run `npm run ai:manifest` in a network-enabled environment to fill in real SHA-256 values from the pinned upstream revisions, review the diff, and commit it. Until then every model reports \"Not yet verified\".",
+  "models": {
+    "qwen2.5-0.5b": {
+      "repo": "onnx-community/Qwen2.5-0.5B-Instruct",
+      "revision": "516c8d04add8a80c5228f32102b57953b8d421a9",
+      "dtypes": { "q4f16": { "files": [] }, "q8": { "files": [] } }
+    },
+    "smollm2-360m": {
+      "repo": "onnx-community/SmolLM2-360M-Instruct-ONNX",
+      "revision": "fe7c7db4c8921c9e3fa1c65cfd296fb3b1b1a8f9",
+      "dtypes": { "q4f16": { "files": [] }, "q8": { "files": [] } }
+    },
+    "smollm2-135m": {
+      "repo": "onnx-community/SmolLM2-135M-Instruct-ONNX",
+      "revision": "b8a5c0f183b78c55955a5364f610c36668b5e681",
+      "dtypes": { "q4f16": { "files": [] }, "q8": { "files": [] } }
+    }
+  }
+}
