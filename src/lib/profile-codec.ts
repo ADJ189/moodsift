@@ -39,7 +39,9 @@ export function encodeProfileRecord(json: string): string | null {
   }
 }
 
-/** Decodes a record written by encodeProfileRecord. Never throws. */
+/** Decodes a record written by encodeProfileRecord, returning a failure reason
+ * for unsupported or unreadable records. Never throws. A successful decode
+ * does not validate JSON or profile fields; callers must validate the text. */
 export function decodeProfileRecord(raw: string): DecodeResult {
   if (!raw.startsWith(RECORD_MARKER)) return { ok: false, reason: 'not-a-record' };
   const parts = raw.split('|', 3);

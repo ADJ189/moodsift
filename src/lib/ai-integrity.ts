@@ -78,7 +78,8 @@ export function manifestFor(
   return { repo: c.repo, revision: c.revision, files: clean };
 }
 
-/** Removes credentials, query and fragment — safe to show, log or copy. */
+/** Removes credentials, query and fragment from a valid URL. For invalid URLs,
+ * returns up to 200 characters before the first query or fragment delimiter. */
 export function sanitizeUrl(raw: string): string {
   try {
     const u = new URL(raw);
@@ -94,7 +95,9 @@ export interface ParsedModelUrl {
   path: string;
 }
 
-/** `https://huggingface.co/{repo}/resolve/{revision}/{path}` → parts. */
+/** Splits a model resolve URL into decoded repo, revision and path, or returns
+ * null for an invalid URL, another origin or an unrecognized path.
+ * Throws TypeError for an invalid remoteHost and URIError for malformed escapes. */
 export function parseModelUrl(raw: string, remoteHost = 'https://huggingface.co/'): ParsedModelUrl | null {
   let u: URL;
   try {
@@ -128,6 +131,7 @@ export interface VerifiedStore {
   delete(key: string): Promise<void>;
 }
 
+/** Creates an isolated, in-memory store of file verification records. */
 export function memoryStore(): VerifiedStore {
   const map = new Map<string, { sha256: string; size: number }>();
   return {
@@ -225,6 +229,9 @@ export interface IntegrityTracker {
 
 const key = (repo: string, revision: string, path: string) => `${repo}@${revision}/${path}`;
 
+/** Tracks one model revision's downloads and recorded cache verification.
+ * Only manifested files with matching size and SHA-256 count as verified;
+ * missing metadata or unsupported responses remain not-verified. */
 export function createIntegrityTracker(opts: TrackerOptions): IntegrityTracker {
   const { repo, revision, entry, baseFetch, store } = opts;
   const remoteHost = opts.remoteHost ?? 'https://huggingface.co/';
@@ -237,6 +244,10 @@ export function createIntegrityTracker(opts: TrackerOptions): IntegrityTracker {
 
   const urlOf = (path: string) => `${remoteHost.replace(/\/?$/, '/')}${repo}/resolve/${encodeURIComponent(revision)}/${path}`;
 
+  /** Forwards requests and records failures, verifying manifested response bodies
+   * as they are consumed. A mismatch errors the stream with IntegrityError and
+   * attempts cache removal; fetch and verification-store errors propagate.
+   * HTTP failures are returned as responses rather than thrown. */
   const trackedFetch: FetchFn = async (input, init) => {
     const raw = input instanceof URL ? input.toString() : String(input);
     let res: Response;
@@ -300,6 +311,9 @@ export function createIntegrityTracker(opts: TrackerOptions): IntegrityTracker {
   return {
     fetch: trackedFetch,
 
+    /** Inspects cache size headers and verification records without hashing bodies.
+     * Attempts to remove inconsistent copies and, if requested, unrecorded ones.
+     * Cache lookup/deletion errors are ignored; verification-store errors propagate. */
     async preflight(cache, { purgeUnrecorded }) {
       if (!cache || !entry) return;
       for (const f of entry.files) {
@@ -332,6 +346,9 @@ export function createIntegrityTracker(opts: TrackerOptions): IntegrityTracker {
     lastFailure: () => failure,
     hasMismatch: () => mismatch !== null,
 
+    /** Reports mismatches or verification coverage using completed downloads and
+     * matching stored records. Does not consume outstanding response bodies.
+     * Verification-store read errors propagate. */
     async finalize() {
       const total = expected.size;
       if (!entry) {

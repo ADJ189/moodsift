@@ -21,6 +21,8 @@ export interface DiagnosticCard {
 
 const INTEGRITY_LABEL = { verified: 'Verified', 'not-verified': 'Not yet verified', failed: 'Verification failed' } as const;
 
+/** Builds a card subscribed to local-AI status, with test/cancel, recommendation
+ * and report-copy actions. Call destroy() when removed to unsubscribe. */
 export function buildDiagnosticCard(): DiagnosticCard {
   let withQuality = false;
   /** The recommendation the person already declined for the current result. */
@@ -42,6 +44,7 @@ export function buildDiagnosticCard(): DiagnosticCard {
   const actions = el('div', { class: 'ai-diag-actions' }, [testBtn, cancelBtn, copyBtn]);
   const recActions = el('div', { class: 'ai-diag-actions' }, [useBtn, keepBtn]);
 
+  /** Clears the dismissed recommendation and renders before/after the diagnostic run. */
   async function start(): Promise<void> {
     dismissedFor = null;
     const done = runDiagnostics({ quality: withQuality });
@@ -50,6 +53,7 @@ export function buildDiagnosticCard(): DiagnosticCard {
     render();
   }
 
+  /** Copies the latest diagnostic when present; clipboard failures show a toast. */
   async function copyReport(): Promise<void> {
     const r = getLastDiagnostic();
     if (!r) return;
@@ -67,6 +71,8 @@ export function buildDiagnosticCard(): DiagnosticCard {
     return [el('dt', {}, [term]), el('dd', {}, [value])];
   }
 
+  /** Refreshes diagnostic facts/actions, keeping focus on the test/cancel action
+   * as it changes, and hides recommendations dismissed for this result. */
   function render(): void {
     const testing = isDiagnosing();
     const r = getLastDiagnostic();

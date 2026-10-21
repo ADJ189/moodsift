@@ -31,6 +31,8 @@ const STATUS_TEXT = {
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 
+/** Builds subscribed taste-memory status and pause/backup/erase controls.
+ * Imports require preview confirmation; call destroy() when removed to unsubscribe. */
 export function buildTasteMemoryCard(): TasteMemoryCard {
   const status = el('p', { class: 'tm-status', role: 'status', 'aria-live': 'polite' });
   const issue = el('p', { class: 'setting-hint warn', role: 'status' });
@@ -45,6 +47,7 @@ export function buildTasteMemoryCard(): TasteMemoryCard {
     return [el('dt', {}, [term]), el('dd', {}, [value])];
   }
 
+  /** Refreshes counts, save status, storage sizes and the personalization switch. */
   function render(): void {
     const info = getTasteMemoryInfo();
     status.textContent = STATUS_TEXT[info.status];
@@ -78,6 +81,7 @@ export function buildTasteMemoryCard(): TasteMemoryCard {
     if (!saved) showToast('That choice could not be saved on this device.');
   });
 
+  /** Starts a readable JSON backup download and schedules release of its object URL. */
   function download(): void {
     const blob = new Blob([exportTasteMemory()], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -88,6 +92,10 @@ export function buildTasteMemoryCard(): TasteMemoryCard {
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  /** Reads the selected backup and displays a preview or validation error without
+   * applying it. Files over 15,000,000 bytes are rejected before reading; decoded
+   * text is also subject to the import parser's character limit.
+   * File-reading errors propagate. */
   async function onFile(): Promise<void> {
     const file = fileInput.files?.[0];
     fileInput.value = '';
@@ -108,6 +116,7 @@ export function buildTasteMemoryCard(): TasteMemoryCard {
     showPreview(result.preview);
   }
 
+  /** Shows backup counts and actions to merge/replace only when explicitly chosen. */
   function showPreview(p: TasteMemoryPreview): void {
     const apply = (mode: 'replace' | 'merge') => {
       const saved = applyTasteMemoryImport(p.profile, mode);
@@ -128,6 +137,7 @@ export function buildTasteMemoryCard(): TasteMemoryCard {
     );
   }
 
+  /** Requests confirmation before resetting taste memory and showing a completion toast. */
   function erase(): void {
     if (!confirm('Erase your taste memory? This deletes your saved ratings, watchlist and personalization settings from this browser. It cannot be undone — export a backup first if you want to keep a copy.')) return;
     eraseTasteMemory();

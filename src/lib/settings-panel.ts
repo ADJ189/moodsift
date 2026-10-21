@@ -131,6 +131,8 @@ export function closeAppearancePanel(): void {
   openPanel?.close();
 }
 
+/** Opens Settings at the requested section, accepting legacy tab names.
+ * Does nothing if already open; traps focus and locks body scrolling until closed. */
 export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'overview'): void {
   if (openPanel) return;
   const initialSection: SettingsSection = initial in LEGACY ? LEGACY[initial as LegacyTab] : (initial as SettingsSection);
@@ -733,6 +735,7 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
   // A priority policy for the optional on-device explanation writer. Stored
   // separately from appearance (see ai-settings.ts), so it is never touched by
   // appearance undo/redo, looks, export/import, presets or reset.
+  /** Builds AI-mode controls and diagnostics, registering subscriptions for panel cleanup. */
   function aiPane(): HTMLElement {
     const buttons = AI_MODE_OPTIONS.map((o) => {
       const b = el(
@@ -900,6 +903,7 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
   // ── Taste memory ────────────────────────────────────────────────────
   // Not appearance: the stored ratings/watchlist are managed separately
   // (profile.ts) and are untouched by appearance undo/redo, looks and reset.
+  /** Builds taste-memory controls and registers their subscription for panel cleanup. */
   function memoryPane(): HTMLElement {
     const card = buildTasteMemoryCard();
     aiModeUnsubscribers.push(card.destroy);
@@ -944,6 +948,8 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
   });
 
   let currentSection: SettingsSection = initialSection;
+  /** Shows a lazily built section and updates tab state; focusTab also focuses its
+   * tab. Appearance comparison controls are hidden for AI and taste memory. */
   function showSection(id: SettingsSection, focusTab = false) {
     currentSection = id;
     let node = built.get(id);

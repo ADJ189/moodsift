@@ -188,8 +188,9 @@ const cleanTags = (v: unknown): string[] | null => {
     .filter((t): t is string => !!t);
 };
 
-/** Strict, allow-list parse of the request body. Anything that doesn't
- * match the expected shape is rejected rather than "best-effort" accepted. */
+/** Returns a sanitized request with 1–40 uniquely identified candidates, or null
+ * for an invalid shape, duplicate id or out-of-range count. Text/tags are bounded,
+ * invalid tags are discarded and candidate years are truncated to integers. */
 function parseRequest(raw: unknown): RecommendRequestBody | null {
   if (!isRecord(raw) || !Array.isArray(raw.candidates)) return null;
   // Over-limit requests are rejected, not silently truncated: a caller that
@@ -240,6 +241,11 @@ async function readBodyCapped(request: Request, maxBytes: number): Promise<strin
   return new TextDecoder().decode(bytes);
 }
 
+/** Re-ranks validated candidates using Workers AI, appending omitted ids in input order.
+ * Requires AI; without a shared limiter, ALLOW_UNSHARED_LIMIT must be exactly 'true'.
+ * Returns JSON errors for disabled service (503), rate limits (429), oversized
+ * bodies (413), invalid requests (400), invalid model output (422), and provider
+ * errors/timeouts (502/504). Errors from the shared limiter propagate to the caller. */
 async function handleRecommend(request: Request, env: Env): Promise<Response> {
   if (!env.AI) return json({ error: 'Not available.' }, 503);
   // Fail closed: the route is unauthenticated and the `Origin` check is not

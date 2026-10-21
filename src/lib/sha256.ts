@@ -31,6 +31,8 @@ export class Sha256 {
     return this.bytes;
   }
 
+  /** Adds bytes to the hash and returns this instance for chaining.
+   * Throws if digestHex() has already finalized the hash. */
   update(data: Uint8Array): this {
     if (this.done) throw new Error('Sha256: update() after digest()');
     this.bytes += data.byteLength;
@@ -53,7 +55,7 @@ export class Sha256 {
     return this;
   }
 
-  /** Finishes the hash and returns it as lowercase hex. Single use. */
+  /** Finishes the hash and returns it as lowercase hex. Throws on a second call. */
   digestHex(): string {
     if (this.done) throw new Error('Sha256: digest() called twice');
     this.done = true;
@@ -75,6 +77,7 @@ export class Sha256 {
     return hex;
   }
 
+  /** Incorporates one 64-byte block starting at the byte offset into the hash state. */
   private compress(buf: Uint8Array, offset: number): void {
     const w = this.w;
     for (let t = 0; t < 16; t++) {
@@ -117,6 +120,7 @@ export class Sha256 {
   }
 }
 
+/** Returns the SHA-256 of the supplied bytes as lowercase hex. */
 export function sha256Hex(data: Uint8Array): string {
   return new Sha256().update(data).digestHex();
 }

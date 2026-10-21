@@ -78,6 +78,8 @@ export interface DiagnosticResult {
 
 const NETWORKISH: readonly FailureKind[] = ['offline', 'timeout', 'cors', 'http', 'network', 'module', 'wasm'];
 
+/** Classifies failure signals, preferring integrity, then timeout, offline and
+ * HTTP errors before message heuristics. Returns unknown when none match. */
 export function classifyFailure(input: { stage: FailureStage; message?: string; status?: number; offline?: boolean; timedOut?: boolean }): FailureKind {
   const m = (input.message ?? '').toLowerCase();
   if (input.stage === 'integrity') return 'integrity';
@@ -95,6 +97,7 @@ export function classifyFailure(input: { stage: FailureStage; message?: string; 
   return 'unknown';
 }
 
+/** Includes timeouts and runtime module/WASM failures among possible access problems. */
 export function isNetworkKind(kind: FailureKind | undefined): boolean {
   return kind !== undefined && NETWORKISH.includes(kind);
 }
@@ -106,6 +109,7 @@ export function cleanMessage(raw: unknown, max = 160): string {
   return text.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/(https?:\/\/[^\s?#"')]+)[?#][^\s"')]*/g, '$1').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
+/** Returns the URL's host (including port), or undefined for a missing or invalid URL. */
 export function hostOf(url: string | undefined): string | undefined {
   if (!url) return undefined;
   try {
@@ -137,7 +141,8 @@ export function describeAttempt(a: AttemptRecord): string {
   return `${a.label}${where}: ${a.stage ?? 'start-up'} — ${kind}${at}`;
 }
 
-/** Concise message for the Settings card / loader: every failed attempt, not only the last. */
+/** Summarizes up to three failed attempts for Settings / the loader and counts
+ * any remainder. Uses a generic failure message when no failed attempts exist. */
 export function summarizeFailures(attempts: readonly AttemptRecord[]): string {
   const failed = attempts.filter((a) => !a.ok);
   if (failed.length === 0) return 'No on-device model could be started on this device.';
@@ -162,9 +167,11 @@ export function eligibleLabels(mode: AiMode, r: ResourceSnapshot): string[] {
 
 /**
  * Suggests a different SAVED mode — never applies it. Only ever recommends a
- * local mode or data saver; never a cloud service. Returns null when nothing
- * would help (e.g. every failure was a network problem: a smaller model would
- * hit the same blocked host).
+ * local mode or data saver; never a cloud service. After a fallback passes,
+ * suggests a different mode only if its first eligible family matches it
+ * and at least one model failure was not network-related.
+ * With no passing candidate, suggests data saver only when a model failed
+ * and none of the model failures is network-related. Otherwise returns null.
  */
 export function recommendMode(mode: AiMode, attempts: readonly AttemptRecord[], passed: Candidate | null, r: ResourceSnapshot): Recommendation | null {
   if (mode === 'lightweight') return null;
@@ -184,6 +191,9 @@ export function recommendMode(mode: AiMode, attempts: readonly AttemptRecord[], 
   return { mode: 'lightweight', message: 'No local model could start on this device. We recommend Lightweight / data saver: it downloads nothing and keeps the rule-based reasons.' };
 }
 
+/** Returns failed without a passing candidate, otherwise passed only for the
+ * first eligible key with no model failures. Runtime failures do not downgrade
+ * that pass; other successes are passed-fallback. */
 export function outcomeOf(attempts: readonly AttemptRecord[], passed: Candidate | null, firstEligibleKey: string | undefined): DiagnosticOutcome {
   if (!passed) return 'failed';
   return passed.key === firstEligibleKey && attempts.every((a) => a.ok || a.key === 'runtime') ? 'passed' : 'passed-fallback';
@@ -202,8 +212,9 @@ export interface ReportEnvironment {
   appVersion: string;
 }
 
-/** The text behind "Copy diagnostic report". Contains technical facts only:
- * no quiz answers, ratings, searches, tokens, cookies or storage contents. */
+/** The text behind "Copy diagnostic report", using technical diagnostic fields.
+ * Callers must supply sanitized attempt URLs/messages and a browser family/version;
+ * this formatter does not redact them or read quiz, rating or storage contents. */
 export function buildReport(r: DiagnosticResult, env: ReportEnvironment): string {
   const lines: string[] = [];
   lines.push(`Moodsift ${env.appVersion} — local AI diagnostic`);

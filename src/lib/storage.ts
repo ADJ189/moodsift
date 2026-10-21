@@ -22,6 +22,7 @@ export function safeSet(key: string, value: string): boolean {
   }
 }
 
+/** Removes a localStorage key; returns true even if absent, or false if access/removal throws. */
 export function safeRemove(key: string): boolean {
   try {
     localStorage.removeItem(key);

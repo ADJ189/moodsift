@@ -170,6 +170,8 @@ function armIdleTimer(): void {
   );
 }
 
+/** Stores the supplied diagnostic or a synthesized failure, terminates the worker,
+ * resolves pending generations with null, and rejects the load with message. */
 function failLoad(message: string, result?: DiagnosticResult): void {
   clearLoadTimers();
   lastResult =
@@ -232,6 +234,7 @@ function onGenerateTimeout(): void {
   notify();
 }
 
+/** Formats a worker loading stage for the status line, including model size when supplied. */
 function stageLabel(msg: Extract<WorkerOutMsg, { type: 'stage' }>): string {
   const model = msg.model ?? 'the model';
   switch (msg.stage) {
@@ -252,6 +255,8 @@ function stageLabel(msg: Extract<WorkerOutMsg, { type: 'stage' }>): string {
   }
 }
 
+/** Updates loading/diagnostic state and settles requests from the current worker;
+ * messages from discarded workers are ignored. */
 function onWorkerMessage(w: Worker, msg: WorkerOutMsg): void {
   if (w !== worker) return; // a message from a worker we already discarded
 
@@ -335,13 +340,17 @@ function getWorker(): Worker {
 
 /**
  * Downloads and starts the local model chosen by the current AI engine mode.
- * Idempotent. Resolves once the model is fully initialised AND has passed its
+ * Reuses a ready model unless diagnosing, and shares any pending load.
+ * Resolves once the model is fully initialized AND has passed its
  * start-up check; rejects with a user-readable message if no eligible model
  * could be started.
  *
  * In Lightweight / data saver mode it returns immediately without importing
  * Transformers.js or downloading anything. It also resolves (without being
  * ready) if the mode changes mid-load — read getLlmStatus() afterwards.
+ * Supplying diagnoseOptions requests verification of unrecorded cached files;
+ * quality=true also runs format checks. Diagnostic cancellation also resolves
+ * the load without readiness. Worker creation, crashes and load timeouts reject.
  */
 export async function enableLocalAi(diagnoseOptions?: { quality: boolean }): Promise<void> {
   if (getAiMode() === 'lightweight') return;
@@ -389,6 +398,7 @@ export function getLastDiagnostic(): DiagnosticResult | null {
   return lastResult;
 }
 
+/** True while a diagnostic run is awaiting completion, including cancellation cleanup. */
 export function isDiagnosing(): boolean {
   return diagnosing;
 }
@@ -397,9 +407,10 @@ export function isDiagnosing(): boolean {
  * "Test on this device". Starts a FRESH worker in the current AI mode and runs
  * the same load path as normal use (policy → runtime → candidate → integrity →
  * real start-up → smoke inference), plus an optional format check. A pass
- * leaves the model loaded, exactly as turning on on-device AI would. Never
- * throws: a failure is returned as a result, and normal rule-based
- * recommendations are unaffected. Resolves `null` if cancelled.
+ * leaves the model loaded, exactly as turning on on-device AI would. Load
+ * rejections are caught; returns the recorded outcome, or null if none was
+ * recorded, cancelled or already diagnosing. Lightweight mode returns disabled
+ * without starting a worker. Normal rule-based recommendations are unaffected.
  */
 export async function runDiagnostics(opts?: { quality: boolean }): Promise<DiagnosticResult | null> {
   const options = opts ?? { quality: false };

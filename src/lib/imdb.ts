@@ -33,7 +33,8 @@ const IMDB_ID = /^tt\d{6,10}$/;
 const MOVIE_TYPES = new Set(['movie', 'tv movie', 'tvmovie', 'tv special', 'tvspecial', 'short', 'video']);
 const TV_TYPES = new Set(['tv series', 'tvseries', 'tv mini series', 'tv mini-series', 'tvminiseries']);
 
-/** RFC 4180 parser: quoted fields may contain commas, doubled quotes and newlines. */
+/** Parses CSV fields with quoted commas, doubled quotes and newlines.
+ * Strips a leading BOM and skips blank rows; malformed quoting is not rejected. */
 export function parseCsv(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
@@ -81,6 +82,11 @@ export interface ImdbParseResult {
   skipped: { unsupportedType: number; invalidRating: number; invalidId: number };
 }
 
+/** Parses IMDb ratings, keeping the last valid row per IMDb id and counting
+ * invalid ids, ratings and unsupported title types. Integer ratings from 1–10
+ * become 0.5–5 stars while preserving the original value. Missing/blank title
+ * types default to movies. Missing Const or Your Rating headers yield no rows
+ * and zero skip counts. */
 export function parseImdbCsv(text: string): ImdbParseResult {
   const skipped = { unsupportedType: 0, invalidRating: 0, invalidId: 0 };
   const table = parseCsv(text);

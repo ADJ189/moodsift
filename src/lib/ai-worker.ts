@@ -40,6 +40,9 @@ const ctx = self as unknown as {
   caches?: CacheStorage;
 };
 
+/** Collects device estimates, treating coarsePointer as a mobile hint and
+ * requiring shader-f16 for a usable GPU. Adapter errors yield webgpuAdapter=false;
+ * unknown memory stays undefined and unavailable core counts default to four. */
 async function detect(coarsePointer: boolean): Promise<ResourceSnapshot & { webgpuApi: boolean }> {
   const nav = ctx.navigator;
   const mem = typeof nav.deviceMemory === 'number' && nav.deviceMemory > 0 ? nav.deviceMemory : undefined;
@@ -60,6 +63,8 @@ async function detect(coarsePointer: boolean): Promise<ResourceSnapshot & { webg
   return { deviceMemoryGb: mem, cores, mobile, webgpuAdapter, crossOriginIsolated: ctx.crossOriginIsolated === true, webgpuApi: Boolean(nav.gpu) };
 }
 
+/** Returns the first pinned CDN module with a pipeline export. If all sources
+ * fail, rejects with RuntimeImportError containing each source's failure. */
 async function importRuntime(): Promise<RuntimeModule> {
   const failures: { url: string; message: string }[] = [];
   for (const src of JS_CDN_SOURCES) {

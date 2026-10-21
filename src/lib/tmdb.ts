@@ -538,8 +538,11 @@ export async function findCatalogItem(title: string, year: number, signal?: Abor
 /**
  * Resolves an IMDb `tt…` id to a CatalogItem via TMDB's external-id lookup —
  * exact, so there is no title guessing between remakes. Returns null when TMDB
- * has no movie/TV entry for it. `preferTv` only breaks a tie when TMDB lists
+ * has no usable movie/TV entry for it, or the id is not tt followed by 6–10
+ * digits. `preferTv` only breaks a tie when TMDB lists
  * both a movie and a TV match for the same id.
+ * Request failures (HTTP, network, timeout or JSON parsing) propagate after
+ * the connector's retry. An aborted uncached request rejects with AbortError.
  */
 export async function findByImdbId(imdbId: string, preferTv: boolean, signal?: AbortSignal): Promise<CatalogItem | null> {
   if (!/^tt\d{6,10}$/.test(imdbId)) return null;

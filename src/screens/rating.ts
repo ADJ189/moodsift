@@ -12,6 +12,8 @@ import type { RatingSeed, RatingValue } from '../lib/types';
 const MIN_RATINGS_TO_CONTINUE = 3;
 const CONTINUE_LABEL = 'Get my recommendations →';
 
+/** Mounts rating calibration with queued Letterboxd/IMDb imports.
+ * Returns cleanup that ignores late results and aborts in-flight import lookups. */
 export function renderRating(root: HTMLElement): () => void {
   let cancelled = false;
   const cards = new Map<string, HTMLElement>();
@@ -232,6 +234,12 @@ export function renderRating(root: HTMLElement): () => void {
       });
   }
 
+  /** Imports up to the last 400 parsed CSV rows, detecting IMDb by its headers.
+   * Resolves IMDb ids first, with movie title-search fallback; lookup failures
+   * are counted and force a merge. With matches and no failed lookups, replaces
+   * that provider's stored import, preserving in-app ratings. Without TMDB,
+   * only matches visible seeds into session ratings. Updates progress and stars;
+   * file-reading errors propagate to the import queue's error handler. */
   async function runImport(file: File): Promise<void> {
     const text = await file.text();
     if (cancelled) return;

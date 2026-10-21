@@ -63,6 +63,8 @@ function ratingsRow(parts: { svg: string; label: string }[], size = 12): string 
   return parts.map((p) => iconLabel(p.svg, p.label, size)).join(' <span class="rating-sep">·</span> ');
 }
 
+/** Mounts recommendations with rating feedback and optional local-AI explanations.
+ * Returns cleanup for subscriptions, pending UI updates, dialogs and comparison state. */
 export function renderResults(root: HTMLElement): () => void {
   let cancelled = false;
 
@@ -186,16 +188,10 @@ export function renderResults(root: HTMLElement): () => void {
     }
   }
 
-  /** Rebuilds the engine from scratch each time — quiz + seed ratings +
-   * every result rating collected so far — and returns the next unseen
-   * batch. Titles the user has directly rated are excluded from the pool:
-   * they've already gotten a verdict, repeating them adds nothing.
-   * In precise mode, the pool is also held to a minimum match% so a
-   * thinner, more confident list beats a padded-out one.
-   *
-   * `opts` lets ensureBatch() reuse this for its fallback steps instead of
-   * duplicating the scoring pipeline: ignoreShown lifts the "already
-   * shown this session" exclusion, ignorePreciseFloor lifts the 68%+ bar. */
+  /** Builds an engine from quiz answers and this session's seed/result ratings.
+   * Adds stored history once per title unless personalization is paused;
+   * imported history is downweighted above 12 titles, while in-app history
+   * keeps full weight. Returns the engine without selecting a results batch. */
   function buildEngine(): RecommendationEngine {
     const engine = new RecommendationEngine();
     engine.processQuiz(quizAnswers);

@@ -131,6 +131,7 @@ const QUALITY_PROMPTS: { item: ExplainInput; summary: string }[] = [
   { item: { title: 'Superbad', year: 2007, reasons: ['Comedy', 'Light and fun', 'Short'] }, summary: 'a light comedy for a friend night' },
 ];
 
+/** Returns the final assistant message from the first pipeline result, or null. */
 function extractReply(out: unknown): string | null {
   const first = Array.isArray(out) ? (out[0] as { generated_text?: unknown } | undefined) : undefined;
   const text = first?.generated_text;
@@ -139,6 +140,8 @@ function extractReply(out: unknown): string | null {
   return last && last.role === 'assistant' && typeof last.content === 'string' ? last.content : null;
 }
 
+/** Rejects with a labeled Error after `ms` milliseconds, or forwards the promise's
+ * result/rejection. Timing out does not cancel the underlying operation. */
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
@@ -147,6 +150,10 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
+/** Creates a local model engine whose progress and results go through deps.post.
+ * Loading tries eligible candidates until one has no integrity failure and passes
+ * its smoke check. Generation requests are queued and reply with null on failure.
+ * Runtime, network, cache and device access use the supplied dependencies. */
 export function createEngine(deps: EngineDeps) {
   let generator: Pipeline | null = null;
   let active: Candidate | null = null;
@@ -157,6 +164,7 @@ export function createEngine(deps: EngineDeps) {
 
   const stage = (s: Stage, c?: Candidate) => deps.post({ type: 'stage', stage: s, model: c?.label, approxMb: c?.approxMb });
 
+  /** Releases a pipeline when supported, ignoring disposal failures. */
   async function disposeGenerator(g: Pipeline | null): Promise<void> {
     try {
       await g?.dispose?.();
@@ -169,7 +177,8 @@ export function createEngine(deps: EngineDeps) {
    * version-correct default, never hard-coded) and, if the default host is
    * unreachable, switches to the first mirror that serves both files. The
    * generic "NetworkError" a blocked asset produces deep inside ONNX Runtime
-   * otherwise cannot be told apart from a model-download failure. */
+   * otherwise cannot be told apart from a model-download failure. Records
+   * unreachable hosts and continues loading even if every probe fails. */
   async function ensureWasmHost(env: any, attempts: AttemptRecord[]): Promise<void> {
     const paths = env?.backends?.onnx?.wasm?.wasmPaths;
     if (!paths || typeof paths !== 'object' || typeof paths.mjs !== 'string' || typeof paths.wasm !== 'string') return;
@@ -208,6 +217,8 @@ export function createEngine(deps: EngineDeps) {
     // (now recorded) resource named, instead of a bare "NetworkError".
   }
 
+  /** Returns the first failed HEAD probe, converting request errors and the
+   * eight-second timeout into details, or null if every URL responds successfully. */
   async function firstUnreachable(urls: string[]): Promise<{ url: string; status?: number; message?: string } | null> {
     for (const url of urls) {
       try {
@@ -220,6 +231,11 @@ export function createEngine(deps: EngineDeps) {
     return null;
   }
 
+  /** Posts a ready/error outcome and progress while trying eligible local models.
+   * Reuses a ready model unless diagnosing, and ignores loads already in progress.
+   * A fresh lightweight load posts disabled without accessing the runtime or models.
+   * Diagnostic loads purge unrecorded cache entries and may run extra format checks;
+   * failed format checks do not fail a model. Load failures become error messages. */
   async function load(msg: LoadMsg): Promise<void> {
     if (generator && active && lastReady && !msg.diagnose) {
       deps.post(lastReady);
@@ -427,8 +443,9 @@ export function createEngine(deps: EngineDeps) {
     }
   }
 
-  /** Aggregates per-file download events into one monotonic percentage and
-   * announces the "initializing" stage once every started file has finished. */
+  /** Aggregates file downloads into a monotonic percentage capped at 99.
+   * Calls onInit and announces initialization once all tracked files are done
+   * and at least 95% of the candidate's approximate weight bytes have arrived. */
   function makeProgressReporter(candidate: Candidate, onInit: () => void): (p: unknown) => void {
     const files = new Map<string, { loaded: number; total: number; done: boolean }>();
     const expectedBytes = candidate.approxMb * 1_000_000;
@@ -493,6 +510,8 @@ export function createEngine(deps: EngineDeps) {
     };
   }
 
+  /** Posts started, then a validated explanation or null when no model is ready,
+   * generation throws or the output is unusable. */
   async function generateOne(msg: GenerateMsg): Promise<void> {
     // Lets the main thread start its per-request timeout now that this request
     // is actually being decoded (not merely waiting in the queue).
@@ -509,6 +528,7 @@ export function createEngine(deps: EngineDeps) {
     }
   }
 
+  /** Processes queued generations serially; returns immediately if already draining. */
   async function drain(): Promise<void> {
     if (draining) return;
     draining = true;
@@ -520,6 +540,8 @@ export function createEngine(deps: EngineDeps) {
   }
 
   return {
+    /** Loads a model or enqueues a generation. Results arrive through deps.post;
+     * a generation queued during an active drain can resolve before it is processed. */
     handle(msg: InMsg): Promise<void> {
       if (msg.type === 'load') return load(msg);
       // Worker-side serial queue: requests are decoded strictly one at a time,

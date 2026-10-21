@@ -133,6 +133,8 @@ const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object
 const num = (v: unknown, fallback = 0): number => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
 const str = (v: unknown, fallback = ''): string => (typeof v === 'string' ? v : fallback);
 
+/** Rebuilds a stored rating with bounded/defaulted fields and recognized import
+ * metadata; returns null for an invalid id, media type or integer 1–5 rating. */
 function sanitizeHistoryEntry(raw: unknown): HistoryEntry | null {
   if (!isObj(raw)) return null;
   const id = num(raw.id, -1);
@@ -224,6 +226,7 @@ interface Loaded {
   issue: string | null;
 }
 
+/** Parses and sanitizes profile JSON, returning null on parsing or sanitization failure. */
 function parseProfileText(json: string): LocalProfile | null {
   try {
     return sanitizeProfile(JSON.parse(json));
@@ -232,6 +235,10 @@ function parseProfileText(json: string): LocalProfile | null {
   }
 }
 
+/** Prefers readable v2 storage, then legacy v1, returning its source and any
+ * load issue. Saves unreadable v2 data aside unless an identical copy exists;
+ * if copying fails, blocks v2 writes for the session to protect the original.
+ * Storage read failures are treated as missing data. */
 function loadStored(): Loaded {
   let issue: string | null = null;
   const raw2 = safeGet(KEY_V2);
@@ -264,6 +271,7 @@ let loadIssue: string | null = null;
 let v2WriteBlocked = false;
 const memoryListeners = new Set<() => void>();
 
+/** Notifies taste-memory subscribers, ignoring individual subscriber errors. */
 function notifyMemory(): void {
   for (const fn of memoryListeners) {
     try {
@@ -274,8 +282,11 @@ function notifyMemory(): void {
   }
 }
 
-/** Compression is a storage optimisation, not encryption: same-origin script
- * can still read the profile. Returns whether the write was stored. */
+/** Compresses and stores the profile, updates the last-write status and notifies
+ * subscribers. Returns false on serialization, compression or storage failure,
+ * or while writes are blocked to protect an unreadable stored record.
+ * Compression is a storage optimization, not encryption: same-origin script
+ * can still read the profile. */
 function writeProfile(profile: LocalProfile): boolean {
   if (v2WriteBlocked) {
     lastWriteOk = false;
@@ -322,6 +333,9 @@ export function __resetInMemoryStateForTests(): void {
   paused = null;
 }
 
+/** Returns the shared mutable profile, loading or creating it on first access.
+ * That first access updates the visit time and attempts to save/migrate storage;
+ * failed storage writes leave the profile usable for this session. */
 export function getProfile(): LocalProfile {
   if (cached) return cached;
   const loaded = loadStored();
@@ -354,12 +368,14 @@ export function getPersistenceStatus(): PersistenceStatus {
   return storageAccessible() ? 'session' : 'unavailable';
 }
 
+/** Trims the name to 40 characters, keeps the current name if empty, and attempts to save. */
 export function setDisplayName(name: string): void {
   const p = getProfile();
   p.displayName = name.trim().slice(0, 40) || p.displayName;
   writeProfile(p);
 }
 
+/** Updates the avatar and attempts to save it; undefined removes the emoji selection. */
 export function setAvatar(color: string, emoji: string | undefined): void {
   const p = getProfile();
   p.avatarColor = color;
@@ -367,6 +383,8 @@ export function setAvatar(color: string, emoji: string | undefined): void {
   writeProfile(p);
 }
 
+/** Replaces this title's rating, appends it as the newest history row and attempts
+ * to save. Drops leading history rows beyond the 1,000-entry cap. */
 export function recordRating(item: CatalogItem, rating: RatingValue, source: 'calibration' | 'result'): void {
   const p = getProfile();
   const entry: HistoryEntry = {
@@ -400,21 +418,21 @@ export function hasDeliberateRating(ref: TitleRef): boolean {
   return !!existing && existing.source !== 'import';
 }
 
-/** Replaces the imported library with this file's contents.
+/** Records a batch of imported ratings and attempts to save once.
  *
- * Source-of-truth rule: the most recent import IS the library. Every
- * earlier imported entry that is absent from the new file is removed, so
- * re-importing a smaller (or different) export can never leave stale
- * ratings silently steering recommendations. Ratings the person gave
- * themselves in the app (calibration / result) are never touched.
+ * With `replace`, removes earlier imports from `provider` before adding entries;
+ * imports without a provider are treated as Letterboxd. Otherwise merges them.
+ * Callers can choose merge when lookups were incomplete. There is one row per
+ * media type + TMDB id: incoming entries may overwrite another provider's
+ * rating for the same title, but in-app ratings take precedence.
  *
- * Replacement only happens when `replace` is true, i.e. when every title in
- * the file was looked up successfully. If any lookup failed (network error,
- * rate limit) the file's contents are incomplete, so the new matches are
- * merged over the previous import instead and nothing is erased.
+ * `stars` is the normalized 0.5–5 value; `raw` preserves the source's rating
+ * and scale, defaulting to stars on a five-point scale when omitted.
+ * History is capped at 1,000 entries, removing imported rows first.
  *
  * Returns the media keys that were skipped because the person had already
- * rated them in the app, so callers can keep other stores consistent. */
+ * rated them in the app, so callers can keep other stores consistent.
+ * A failed save leaves the updated history in memory. */
 export function recordImportedRatings(
   entries: { item: CatalogItem; stars: number; raw?: { rating: number; scaleMax: 5 | 10 } }[],
   replace = true,
@@ -465,8 +483,8 @@ export function recordImportedRatings(
   return kept;
 }
 
-/** Keeps at most MAX_HISTORY rows. Past the cap the oldest *imported* rows go
- * first, so a large library can never evict a rating given deliberately. */
+/** Keeps at most MAX_HISTORY rows, removing imported rows in array order first,
+ * then leading rows if the remaining in-app ratings still exceed the cap. */
 function capHistory(rows: HistoryEntry[]): HistoryEntry[] {
   let merged = rows;
   let overflow = merged.length - MAX_HISTORY;
@@ -557,6 +575,8 @@ export function isInWatchlist(ref: TitleRef): boolean {
   return getProfile().watchlist.some((w) => keyOf(w) === k);
 }
 
+/** Adds/removes a title and attempts to save. Returns its new watchlist membership,
+ * even if the change could only be kept in memory. */
 export function toggleWatchlist(item: CatalogItem): boolean {
   const p = getProfile();
   const k = keyOf(item);
@@ -577,6 +597,7 @@ export function toggleWatchlist(item: CatalogItem): boolean {
   return !already;
 }
 
+/** Removes this media type + TMDB id from the watchlist and attempts to save. */
 export function removeFromWatchlist(ref: TitleRef): void {
   const p = getProfile();
   const k = keyOf(ref);
@@ -616,6 +637,8 @@ export interface TasteMemoryInfo {
   loadIssue: string | null;
 }
 
+/** Subscribes to profile write attempts and pause changes without an initial call.
+ * Returns an unsubscribe function; callback errors are ignored during notification. */
 export function subscribeTasteMemory(fn: () => void): () => void {
   memoryListeners.add(fn);
   return () => {
@@ -625,6 +648,8 @@ export function subscribeTasteMemory(fn: () => void): () => void {
 
 let paused: boolean | null = null;
 
+/** Reads the cached pause setting, defaulting to false for missing, unreadable
+ * or unsupported stored settings. */
 function readPaused(): boolean {
   if (paused !== null) return paused;
   const raw = safeGet(KEY_MEMORY);
@@ -651,6 +676,9 @@ export function setPersonalizationPaused(value: boolean): boolean {
   return ok;
 }
 
+/** Returns current counts, pause/load status and the latest write outcome.
+ * Size measurements are UTF-16 code units from the last successful profile write;
+ * they can be stale after a failed write. Rating timestamps are epoch milliseconds. */
 export function getTasteMemoryInfo(): TasteMemoryInfo {
   const p = getProfile();
   const imported = p.history.filter((h) => h.source === 'import').length;
@@ -687,7 +715,10 @@ export interface TasteMemoryPreview {
   skippedRows: number;
 }
 
-/** Validates a backup file WITHOUT touching the active profile. */
+/** Validates and sanitizes a backup WITHOUT touching the active profile.
+ * Returns a preview with counts (skippedRows counts discarded history rows),
+ * or an error for invalid JSON, unsupported formats or more than 5,000,000
+ * UTF-16 code units. */
 export function parseTasteMemoryImport(text: string): { ok: true; preview: TasteMemoryPreview } | { ok: false; error: string } {
   if (text.length > MAX_IMPORT_CHARS) return { ok: false, error: 'That file is too large to be a Moodsift backup.' };
   let data: unknown;
@@ -716,7 +747,10 @@ export function parseTasteMemoryImport(text: string): { ok: true; preview: Taste
 
 /** Applies a previewed backup. `replace` swaps the whole profile; `merge` adds
  * to it (an in-app rating beats an imported one, otherwise the newer rating
- * wins, and the same title is never counted twice). Persists once. */
+ * wins, and the same title is never counted twice). Merge keeps the current
+ * identity and adds watchlist titles not already present. Expects a sanitized
+ * profile from parseTasteMemoryImport. Returns whether the final write succeeded;
+ * a failed write still applies the change in memory. */
 export function applyTasteMemoryImport(incoming: LocalProfile, mode: 'replace' | 'merge'): boolean {
   const cur = getProfile();
   if (mode === 'replace') {
@@ -739,8 +773,9 @@ export function applyTasteMemoryImport(incoming: LocalProfile, mode: 'replace' |
 }
 
 /** Explicit, user-initiated only — the one destructive action in this module.
- * Deletes the profile in every storage format, the unreadable-data copy and
- * the pause flag, resets in-memory state, and starts a fresh profile. It does
+ * Attempts to delete the profile in every storage format, the unreadable-data
+ * copy and the pause flag, then returns a fresh in-memory profile and attempts
+ * to save it. Storage failures are ignored, so old records may remain. It does
  * not (and cannot) touch browser backups, sync copies or exported files. */
 export function eraseTasteMemory(): LocalProfile {
   for (const k of [KEY_V1, KEY_V2, KEY_UNREADABLE, KEY_MEMORY]) safeRemove(k);

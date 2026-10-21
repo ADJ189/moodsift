@@ -27,7 +27,8 @@ const HOST = 'https://huggingface.co';
 export const WEIGHTS_FILE = { q4f16: 'onnx/model_q4f16.onnx', q8: 'onnx/model_quantized.onnx' };
 const SMALL_FILES = ['config.json', 'generation_config.json', 'tokenizer.json', 'tokenizer_config.json'];
 
-/** Pure: which tree entries a dtype needs (weights, optional external-data shards, small files). */
+/** Returns paths for weights, optional external-data shards and supporting files.
+ * Throws for an unknown dtype or missing required weights/config/tokenizer files. */
 export function requiredPaths(tree, dtype) {
   const weights = WEIGHTS_FILE[dtype];
   if (!weights) throw new Error(`Unknown dtype: ${dtype}`);
@@ -40,6 +41,8 @@ export function requiredPaths(tree, dtype) {
   return paths;
 }
 
+/** Downloads a file and returns its SHA-256 and size in bytes.
+ * Rejects on an unsuccessful or bodyless response; fetch and stream errors propagate. */
 async function sha256OfUrl(fetchImpl, url) {
   const res = await fetchImpl(url);
   if (!res.ok || !res.body) throw new Error(`Download failed (${res.status}) for ${url}`);
@@ -52,6 +55,11 @@ async function sha256OfUrl(fetchImpl, url) {
   return { sha256: hash.digest('hex'), size };
 }
 
+/** Returns a copy with file hashes and byte sizes from each pinned upstream revision.
+ * Uses LFS metadata when available, otherwise downloads and hashes the file.
+ * `fetchImpl` supplies upstream access; `now` supplies the generatedAt timestamp.
+ * Rejects on listing/download errors, missing required files or a downloaded size
+ * that disagrees with the tree. Fetch, JSON parsing and stream errors propagate. */
 export async function generate(manifest, { fetchImpl = fetch, now = () => new Date().toISOString() } = {}) {
   const out = structuredClone(manifest);
   const treeCache = new Map();
@@ -88,6 +96,8 @@ export async function generate(manifest, { fetchImpl = fetch, now = () => new Da
 
 const strip = (m) => JSON.stringify({ ...m, generatedAt: null });
 
+/** Writes the generated manifest, or exits with status 1 if --check finds a
+ * difference other than generatedAt. File, parsing and generation errors propagate. */
 async function main() {
   const check = process.argv.includes('--check');
   const current = JSON.parse(await readFile(MANIFEST_PATH, 'utf8'));
