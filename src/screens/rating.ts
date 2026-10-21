@@ -1,10 +1,11 @@
 import { buildRatingPool } from '../lib/rating-pool';
 import { buildPosterImage, el, mount } from '../lib/dom';
 import { parseLetterboxdCsv } from '../lib/letterboxd';
+import { detectImportFormat, parseImdbCsv } from '../lib/imdb';
 import { keyOf, parseMediaKey } from '../lib/media-key';
-import { hasDeliberateRating, recordImportedRatings, recordSeedRating } from '../lib/profile';
+import { hasDeliberateRating, recordImportedRatings, recordSeedRating, type ImportProvider } from '../lib/profile';
 import { store } from '../lib/store';
-import { findCatalogItem, isTmdbConfigured, posterUrl, searchTitle } from '../lib/tmdb';
+import { findByImdbId, findCatalogItem, isTmdbConfigured, posterUrl, searchTitle } from '../lib/tmdb';
 import type { CatalogItem } from '../lib/types';
 import type { RatingSeed, RatingValue } from '../lib/types';
 
@@ -52,7 +53,7 @@ export function renderRating(root: HTMLElement): () => void {
       el('h2', {}, ['Rate a few you know']),
       el('p', {}, [subtitle]),
       el('button', { class: 'btn btn-ghost', onclick: () => importInput.click() }, [
-        'Import your Letterboxd history',
+        'Import ratings (Letterboxd or IMDb CSV)',
       ]),
       importInput,
       importStatus,
@@ -234,9 +235,32 @@ export function renderRating(root: HTMLElement): () => void {
   async function runImport(file: File): Promise<void> {
     const text = await file.text();
     if (cancelled) return;
-    const rows = parseLetterboxdCsv(text).slice(-IMPORT_CAP);
+    // Two supported files, told apart by their header row. Both end up as the
+    // same normalised rows; the source's own rating and scale are kept.
+    interface ImportRow {
+      title: string;
+      year: number;
+      stars: number;
+      rating: number;
+      imdbId?: string;
+      tv?: boolean;
+      raw: { rating: number; scaleMax: 5 | 10 };
+    }
+    const provider: ImportProvider = detectImportFormat(text) === 'imdb' ? 'imdb-csv' : 'letterboxd-csv';
+    let rows: ImportRow[];
+    let skippedNote = '';
+    if (provider === 'imdb-csv') {
+      const parsed = parseImdbCsv(text);
+      rows = parsed.rows.slice(-IMPORT_CAP).map((r) => ({ title: r.title, year: r.year, stars: r.stars, rating: r.rating, imdbId: r.imdbId, tv: r.tv, raw: { rating: r.rawRating, scaleMax: 10 as const } }));
+      const n = parsed.skipped.unsupportedType + parsed.skipped.invalidRating + parsed.skipped.invalidId;
+      if (n > 0) skippedNote = ` ${n} row${n === 1 ? '' : 's'} skipped (episodes, games or invalid ratings).`;
+    } else {
+      rows = parseLetterboxdCsv(text)
+        .slice(-IMPORT_CAP)
+        .map((r) => ({ title: r.title, year: r.year, stars: r.stars, rating: r.rating, raw: { rating: r.stars, scaleMax: 5 as const } }));
+    }
     if (rows.length === 0) {
-      setImportStatus('That file didn\u2019t look like a Letterboxd ratings.csv \u2014 export it from Settings \u2192 Data.');
+      setImportStatus('That file didn\u2019t look like a Letterboxd ratings.csv or an IMDb ratings export (IMDb \u2192 Your Ratings \u2192 Export).');
       return;
     }
 
@@ -268,15 +292,21 @@ export function renderRating(root: HTMLElement): () => void {
     // Lookups finish out of order, so results are slotted by row index and
     // flattened afterwards. That keeps the outcome (including which row wins
     // when two rows resolve to the same film) independent of network timing.
-    const slots = Array.from({ length: rows.length }, (): { item: CatalogItem; stars: number } | null => null);
+    type Matched = { item: CatalogItem; stars: number; raw: ImportRow['raw'] };
+    const slots = Array.from({ length: rows.length }, (): Matched | null => null);
     let next = 0;
     const worker = async () => {
       while (next < rows.length && !cancelled) {
         const index = next++;
         const row = rows[index]!;
         try {
-          const item = await findCatalogItem(row.title, row.year, abort.signal);
-          if (item) slots[index] = { item, stars: row.stars };
+          // IMDb rows carry an exact id; only fall back to a title search for
+          // movies (the title search is movie-only, so a TV row must not be
+          // guessed onto a film of the same name).
+          const item = row.imdbId
+            ? ((await findByImdbId(row.imdbId, row.tv === true, abort.signal)) ?? (row.tv ? null : await findCatalogItem(row.title, row.year, abort.signal)))
+            : await findCatalogItem(row.title, row.year, abort.signal);
+          if (item) slots[index] = { item, stars: row.stars, raw: row.raw };
           else unmatched++;
         } catch {
           // A failed request says nothing about the title, so it must not be
@@ -289,7 +319,7 @@ export function renderRating(root: HTMLElement): () => void {
     };
     await Promise.all(Array.from({ length: IMPORT_CONCURRENCY }, worker));
     if (cancelled) return;
-    const matched = slots.filter((m): m is { item: CatalogItem; stars: number } => m !== null);
+    const matched = slots.filter((m): m is Matched => m !== null);
 
     // Whole library, persisted and de-duplicated by TMDB id: all of it
     // calibrates the engine, not only titles that happen to be on a card.
@@ -299,7 +329,7 @@ export function renderRating(root: HTMLElement): () => void {
     // matched at all, the file is an incomplete picture: its matches are
     // merged over the previous import and nothing is erased.
     const replace = failed === 0 && matched.length > 0;
-    const keptIds = recordImportedRatings(matched, replace);
+    const keptIds = recordImportedRatings(matched, replace, provider);
 
     // Titles that are also visible as seed cards light up their stars.
     const imported: Record<string, RatingValue> = {};
@@ -318,7 +348,7 @@ export function renderRating(root: HTMLElement): () => void {
     if (replace) libraryKeys.clear();
     for (const m of matched) libraryKeys.add(keyOf(m.item));
     const retryNote = failed > 0 ? ` ${failed} lookup${failed === 1 ? '' : 's'} failed, so your earlier import was kept \u2014 try again.` : '';
-    setImportStatus(`Imported ${rows.length} films \u00b7 matched ${matched.length} \u00b7 couldn\u2019t identify ${unmatched}.${retryNote}`);
+    setImportStatus(`Imported ${rows.length} ${provider === 'imdb-csv' ? 'titles' : 'films'} \u00b7 matched ${matched.length} \u00b7 couldn\u2019t identify ${unmatched}.${skippedNote}${retryNote}`);
     syncFromStore();
   }
 

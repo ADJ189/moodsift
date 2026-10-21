@@ -10,7 +10,7 @@ import { fetchExternalRatings, isOmdbConfigured } from '../lib/omdb';
 import { subscribeAiMode } from '../lib/ai-settings';
 import { describeLlm, enableLocalAi, generateExplanation, getLlmStatus, subscribeLlm } from '../lib/llm';
 import { openAppearancePanel } from '../lib/settings-panel';
-import { historyAsCatalogItems, historyRatingFor, isInWatchlist, recordRating, toggleWatchlist } from '../lib/profile';
+import { historyAsCatalogItems, historyRatingFor, isInWatchlist, isPersonalizationPaused, recordRating, toggleWatchlist } from '../lib/profile';
 import { keyOf } from '../lib/media-key';
 import { buildStarRow, buildWatchlistButton, paintStars } from '../lib/rating-ui';
 import { buildActionGroup, buildDetailsButton, buildKindLine, buildQuickButton, buildRatingLine, buildSynopsis } from '../lib/card-ui';
@@ -220,7 +220,10 @@ export function renderResults(root: HTMLElement): () => void {
     // must fall through to the history pass instead of being dropped.
     const countedSeeds = Object.keys(seedRatings).filter((key) => ratingSignals[key] !== undefined);
     const counted = new Set<string>([...countedSeeds, ...resultRatings.keys()]);
-    const history = historyAsCatalogItems().filter(({ item }) => !counted.has(keyOf(item)));
+    // "Pause personalization" keeps the saved ratings but stops applying them
+    // here; this session's own ratings (above) still count. Titles already
+    // rated stay excluded from the candidate pool either way.
+    const history = isPersonalizationPaused() ? [] : historyAsCatalogItems().filter(({ item }) => !counted.has(keyOf(item)));
     // A big imported library must not outvote the quiz, so *imported*
     // entries are scaled down past ~12 films to keep the library's total
     // weight bounded. Ratings the person gave deliberately in this app
