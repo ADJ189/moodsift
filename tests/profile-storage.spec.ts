@@ -186,6 +186,74 @@ test.describe('profile persistence (v1 → v2)', () => {
     expect(m.getPersistenceStatus()).toBe('saved');
   });
 
+  for (const aside of [null, 'a different unreadable record']) {
+    test(`failed aside copy protects v2 and legacy data (${aside === null ? 'no aside' : 'different aside'})`, async () => {
+      const raw2 = 'unreadable'.repeat(2000);
+      const raw1 = JSON.stringify(legacy(3));
+      const m = await fresh((s) => {
+        s.setItem(V2, raw2);
+        s.setItem(V1, raw1);
+        if (aside !== null) s.setItem(UNREADABLE, aside);
+        // A new compressed profile would fit, but a second copy of raw2 cannot.
+        s.quota = [...s.map].reduce((n, [k, v]) => n + k.length + v.length, 100);
+      });
+      expect(m.getProfile().history).toHaveLength(3);
+      expect(m.getPersistenceStatus()).toBe('session');
+      expect(m.getTasteMemoryInfo().loadIssue).toMatch(/original data was left untouched/);
+      expect(storage.map.get(V2)).toBe(raw2);
+      expect(storage.map.get(V1)).toBe(raw1);
+      expect(storage.map.get(UNREADABLE) ?? null).toBe(aside);
+
+      storage.quota = Infinity;
+      m.recordRating(item(1), 4, 'result');
+      expect(m.getProfile().history).toHaveLength(4);
+      expect(m.getPersistenceStatus()).toBe('session');
+      expect(storage.map.get(V2)).toBe(raw2);
+
+      m.__resetInMemoryStateForTests();
+      expect(m.getProfile().history).toHaveLength(3);
+      expect(storage.map.get(UNREADABLE)).toBe(raw2);
+      expect(m.getPersistenceStatus()).toBe('saved');
+    });
+  }
+
+  test('an existing aside must match the current unreadable record before v2 is replaced', async () => {
+    const raw2 = 'current unreadable data';
+    const m = await fresh((s) => {
+      s.setItem(V2, raw2);
+      s.setItem(UNREADABLE, 'older unreadable data');
+    });
+    m.getProfile();
+    expect(storage.map.get(UNREADABLE)).toBe(raw2);
+    expect(m.getPersistenceStatus()).toBe('saved');
+  });
+
+  test('a matching aside allows writes even when copying it again would fail', async () => {
+    const raw2 = 'unreadable'.repeat(2000);
+    const m = await fresh((s) => {
+      s.setItem(V2, raw2);
+      s.setItem(UNREADABLE, raw2);
+      s.quota = raw2.length + 1000; // existing values exceed quota; replacing v2 with a small profile fits
+    });
+    m.getProfile();
+    expect(storage.map.get(UNREADABLE)).toBe(raw2);
+    expect(m.getPersistenceStatus()).toBe('saved');
+  });
+
+  test('explicit erase clears the write block and starts a saved empty profile', async () => {
+    const m = await fresh((s) => {
+      s.setItem(V2, 'unreadable'.repeat(2000));
+      s.quota = 20_000;
+    });
+    expect(m.getPersistenceStatus()).toBe('session');
+    m.eraseTasteMemory();
+    expect(m.getPersistenceStatus()).toBe('saved');
+    expect(m.getProfile().history).toHaveLength(0);
+    expect(m.getTasteMemoryInfo().loadIssue).toBeNull();
+    expect(storage.map.has(UNREADABLE)).toBe(false);
+    expect(decodeProfileRecord(storage.map.get(V2)!).ok).toBe(true);
+  });
+
   test('blocked storage: no crash, status "unavailable", data still usable this session', async () => {
     const m = await fresh((s) => (s.blocked = true));
     expect(m.getProfile().history).toHaveLength(0);

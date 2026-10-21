@@ -171,7 +171,7 @@ export function recommendMode(mode: AiMode, attempts: readonly AttemptRecord[], 
   const failed = attempts.filter((a) => !a.ok && a.key !== 'runtime');
 
   if (passed) {
-    if (failed.length === 0) return null;
+    if (failed.every((a) => isNetworkKind(a.kind))) return null;
     const target = MODE_FOR_FAMILY[passed.family];
     if (target === mode) return null;
     // Only suggest a mode whose FIRST pick is the model that actually worked.

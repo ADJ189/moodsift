@@ -10,6 +10,7 @@ import {
   eraseTasteMemory,
   exportTasteMemory,
   getTasteMemoryInfo,
+  MAX_IMPORT_CHARS,
   parseTasteMemoryImport,
   setPersonalizationPaused,
   subscribeTasteMemory,
@@ -93,6 +94,12 @@ export function buildTasteMemoryCard(): TasteMemoryCard {
     preview.replaceChildren();
     importMsg.textContent = '';
     if (!file) return;
+    // UTF-8 needs at most three bytes per UTF-16 code unit; keep all backups
+    // that the character limit accepts eligible for parsing.
+    if (file.size > MAX_IMPORT_CHARS * 3) {
+      importMsg.textContent = 'That file is too large to be a Moodsift backup.';
+      return;
+    }
     const result = parseTasteMemoryImport(await file.text());
     if (!result.ok) {
       importMsg.textContent = result.error;

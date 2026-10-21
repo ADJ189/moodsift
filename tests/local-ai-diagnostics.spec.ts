@@ -70,6 +70,15 @@ test.describe('recommendation policy', () => {
     expect(recommendMode('balanced', [fail({ kind: 'memory' })], null, strong)?.mode).toBe('lightweight');
   });
 
+  test('a working fallback gives no mode advice for network-only failures, but mixed failures still qualify', () => {
+    const kinds = ['offline', 'timeout', 'cors', 'http', 'network', 'module', 'wasm'] as const;
+    for (const kind of kinds) {
+      expect(recommendMode('balanced', [fail({ kind })], f135, strong)).toBeNull();
+    }
+    expect(recommendMode('balanced', kinds.map((kind) => fail({ kind })), f135, strong)).toBeNull();
+    expect(recommendMode('balanced', [fail({ kind: 'network' }), fail({ kind: 'memory' })], f135, strong)?.mode).toBe('fastest');
+  });
+
   test('a recommendation is only ever a local mode (never a cloud service)', () => {
     for (const kind of ['memory', 'unknown', 'empty-output'] as const) {
       const r = recommendMode('best', [fail({ kind })], null, strong);

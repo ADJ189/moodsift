@@ -78,10 +78,12 @@ export function buildDiagnosticCard(): DiagnosticCard {
     stage.textContent = testing ? getLlmStageText() || 'Preparing…' : '';
     stage.hidden = !testing;
 
+    const hadActionFocus = document.activeElement === testBtn || document.activeElement === cancelBtn;
     testBtn.textContent = r && r.outcome !== 'disabled' ? 'Retry test' : 'Test on this device';
     testBtn.disabled = testing;
     testBtn.hidden = testing;
     cancelBtn.hidden = !testing;
+    if (hadActionFocus) (testing ? cancelBtn : testBtn).focus({ preventScroll: true });
     copyBtn.hidden = testing || !r || r.outcome === 'disabled';
     qualityRow.hidden = mode === 'lightweight';
     qualityBox.disabled = testing;

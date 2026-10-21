@@ -10,6 +10,44 @@ async function openAiTab(page: Page) {
 }
 
 test.describe('local AI engine settings', () => {
+  test('diagnostic actions keep keyboard focus through start, cancel and completion', async ({ page, mock }) => {
+    void mock;
+    await page.addInitScript(() => {
+      // A controlled worker keeps the diagnostic pending without model downloads.
+      window.Worker = class extends EventTarget {
+        finish = () => this.dispatchEvent(new MessageEvent('message', { data: { type: 'error', message: 'Fixture model unavailable' } }));
+        constructor() {
+          super();
+          window.addEventListener('finish-diagnostic', this.finish);
+        }
+        postMessage() {}
+        terminate() { window.removeEventListener('finish-diagnostic', this.finish); }
+      } as unknown as typeof Worker;
+    });
+    await page.goto('/');
+    await openAiTab(page);
+    const start = page.locator('[data-ai-diag="test"]');
+    const cancel = page.locator('[data-ai-diag="cancel"]');
+    await start.focus();
+    await page.keyboard.press('Enter');
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(start).toBeFocused();
+
+    await page.keyboard.press('Enter');
+    await expect(cancel).toBeFocused();
+    await page.evaluate(() => window.dispatchEvent(new Event('finish-diagnostic')));
+    await expect(start).toBeFocused();
+    await expect(start).toHaveText('Retry test');
+
+    await page.keyboard.press('Enter');
+    const mode = page.getByRole('radio', { name: /Balanced/ });
+    await mode.focus();
+    await page.evaluate(() => window.dispatchEvent(new Event('finish-diagnostic')));
+    await expect(start).toBeVisible();
+    await expect(mode).toBeFocused();
+  });
+
   test('mode persists separately from appearance and survives appearance reset', async ({ page, mock }) => {
     void mock;
     await page.goto('/');

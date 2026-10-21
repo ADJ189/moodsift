@@ -239,10 +239,12 @@ function loadStored(): Loaded {
     const decoded = decodeProfileRecord(raw2);
     const profile = decoded.ok ? parseProfileText(decoded.json) : null;
     if (profile) return { profile, source: 'v2', issue: null };
-    // Never silently destroy the only copy: keep the unreadable record aside
-    // (once) before a good profile is written over the v2 key.
-    if (!safeGet(KEY_UNREADABLE)) safeSet(KEY_UNREADABLE, raw2);
-    issue = 'Saved taste memory could not be read. The unreadable data was kept aside and not deleted.';
+    // Never overwrite the only copy unless this exact record is kept aside.
+    const preserved = safeGet(KEY_UNREADABLE) === raw2 || safeSet(KEY_UNREADABLE, raw2);
+    v2WriteBlocked = !preserved;
+    issue = preserved
+      ? 'Saved taste memory could not be read. The unreadable data was kept aside and not deleted.'
+      : 'Saved taste memory could not be read or copied aside. The original data was left untouched; changes are session only.';
   }
   const raw1 = safeGet(KEY_V1);
   if (raw1) {
@@ -258,6 +260,8 @@ let cached: LocalProfile | null = null;
 let lastWriteOk = false;
 let lastSizes: { raw: number; stored: number } | null = null;
 let loadIssue: string | null = null;
+/** Protect the unreadable v2 record for this session if no aside could be saved. */
+let v2WriteBlocked = false;
 const memoryListeners = new Set<() => void>();
 
 function notifyMemory(): void {
@@ -273,6 +277,11 @@ function notifyMemory(): void {
 /** Compression is a storage optimisation, not encryption: same-origin script
  * can still read the profile. Returns whether the write was stored. */
 function writeProfile(profile: LocalProfile): boolean {
+  if (v2WriteBlocked) {
+    lastWriteOk = false;
+    notifyMemory();
+    return false;
+  }
   let ok = false;
   try {
     const json = JSON.stringify(profile);
@@ -306,6 +315,7 @@ function migrateFromV1(profile: LocalProfile): void {
 /** Test seam: forgets all in-memory state so a test can start from a chosen storage state. */
 export function __resetInMemoryStateForTests(): void {
   cached = null;
+  v2WriteBlocked = false;
   lastWriteOk = false;
   lastSizes = null;
   loadIssue = null;
@@ -659,7 +669,7 @@ export function getTasteMemoryInfo(): TasteMemoryInfo {
 }
 
 export const EXPORT_FORMAT = 'moodsift-taste-memory';
-const MAX_IMPORT_CHARS = 5_000_000;
+export const MAX_IMPORT_CHARS = 5_000_000;
 
 /** A readable, versioned JSON backup of the canonical profile — never the
  * internal compressed storage record. It contains no tokens or credentials. */
@@ -734,6 +744,7 @@ export function applyTasteMemoryImport(incoming: LocalProfile, mode: 'replace' |
  * not (and cannot) touch browser backups, sync copies or exported files. */
 export function eraseTasteMemory(): LocalProfile {
   for (const k of [KEY_V1, KEY_V2, KEY_UNREADABLE, KEY_MEMORY]) safeRemove(k);
+  v2WriteBlocked = false;
   paused = false;
   loadIssue = null;
   lastSizes = null;

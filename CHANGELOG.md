@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Fixed
+- Preserve keyboard focus when starting, cancelling or finishing local AI diagnostics, and avoid mode recommendations after network-only fallback failures.
+- Keep unreadable taste memory untouched when its aside copy cannot be saved, and reject oversized backup files before reading them into memory.
+
 ## [1.13.5] — Local AI diagnostics, model integrity, compressed taste memory, IMDb import
 
 ### Added
