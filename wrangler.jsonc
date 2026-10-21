@@ -11,22 +11,21 @@
     "directory": "./dist",
     "binding": "ASSETS"
   },
-  // Optional: enables env.AI in worker/index.ts for a server-side
-  // re-ranking pass on top of the client-side TMDB pool. The app works
-  // fully without this. If you enable it, you must ALSO turn on the AI
-  // binding in the Cloudflare dashboard for this Worker (Settings ->
-  // Bindings -> AI) — declaring it here alone is not enough, which was
-  // the root cause of the old app's silent fallback.
-  "ai": {
-    "binding": "AI"
-  },
-  // Optional but recommended once the AI binding is on: per-IP rate limit
-  // for POST /api/recommend. worker/index.ts uses env.RECOMMEND_LIMITER
-  // only if it exists, so leaving this commented out is safe.
+  // OFF by default (v1.13.5). The frontend never calls POST /api/recommend —
+  // ranking is client-side and on-device AI runs in the browser — so leaving
+  // the Workers AI binding on only exposed an unauthenticated, quota-spending
+  // route. worker/index.ts answers 503 whenever env.AI is absent.
   //
+  // To re-enable the optional server-side re-ranking pass, turn on BOTH of
+  // these (and the AI binding in the Cloudflare dashboard: Settings ->
+  // Bindings -> AI). The route refuses to run without the shared limiter:
+  //
+  // "ai": { "binding": "AI" },
   // "ratelimits": [
   //   { "name": "RECOMMEND_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } }
   // ],
+  //
+  // Also set a spend/usage alert for Workers AI in the Cloudflare dashboard.
   "observability": {
     "enabled": true
   }

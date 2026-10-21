@@ -2,6 +2,34 @@
 
 All notable changes to this project are documented here.
 
+## [1.13.5] — Local AI diagnostics, model integrity, compressed taste memory, IMDb import
+
+### Added
+- **Test on this device** (Settings → AI engine): runs the real local-AI load path in a fresh Web Worker and reports *Passed*, *Passed with fallback* or *Failed* with model, backend, dtype, size, start-up time, integrity state and a readable reason. Progress stages, **Cancel**, **Retry**, an optional format check and a privacy-safe **Copy diagnostic report**. Lightweight / data saver reports that local AI is intentionally off and does nothing else.
+- **Auto-recommendation**: when an earlier model fails and a smaller one works, the card offers **Use recommended mode** / **Keep current setting**. The saved mode is never changed silently and never switches to cloud AI.
+- **Model checksum verification**: streaming SHA-256 + size verification of every manifested model file through Transformers.js' `env.fetch` hook; mismatches fail closed, discard the cached copy and fall through to the next eligible candidate. States *Verified* / *Not yet verified* / *Verification failed*. `npm run ai:manifest` generates the manifest from the pinned upstream revisions; `npm run ai:manifest:check` is the release gate.
+- **Structured per-attempt failure records** (stage, resource origin+path, HTTP status, offline/timeout/CORS/HTTP/network/module/WASM/memory/integrity) replacing "last error only". ONNX WASM asset reachability is probed and falls back to same-version mirrors.
+- **Compressed profile storage** (`cinematch.profile.v2`, LZ-String UTF-16, versioned `MOODPROFILE|2|lz-utf16|` record). Lossless; one write path; the v1 key is removed only after the v2 copy is read back and verified; unreadable data is set aside, never deleted.
+- **Honest save status**: *Saved on this device* / *Session only* / *Not saved — storage unavailable*, updated from the result of every write.
+- **Settings → Taste memory**: counts, storage size (raw vs stored characters), **Pause personalization**, **Export backup** (readable versioned JSON), **Import backup** (preview first; Replace or Merge) and **Erase saved taste memory**.
+- **IMDb ratings CSV import** alongside Letterboxd (auto-detected from the header): exact TMDB match by IMDb id, 1–10 → 0.5–5 stars with the original rating, scale and provider preserved; episodes/games and invalid rows are skipped and counted. Re-importing a provider replaces only that provider's earlier import.
+
+### Security / audit
+- `undici` override raised to **7.30.1** (patched DoS); `npm audit` reports 0 vulnerabilities; CI now runs `npm audit --audit-level=high`.
+- `/api/recommend` is **off by default**: the `ai` binding is commented out in `wrangler.jsonc` (the frontend never calls the route), and the route now fails closed unless the shared `RECOMMEND_LIMITER` binding is configured.
+- Requests with more than 40 candidates are **rejected** instead of silently truncated.
+- `Content-Security-Policy: frame-ancestors 'self'` is enforced; the full policy ships as **Report-Only** (it could not be validated in a real browser here — promote it after checking the console on the live site).
+
+### Changed
+- AI mode descriptions rewritten to match the product table. `src/lib/ai-worker.ts` is now thin wiring; decisions live in the unit-tested `src/lib/ai-engine.ts`.
+- Existing tests that read the profile directly were updated for the v2 key; `a11y` scan includes the new section.
+
+### Not in this release
+Trakt / Simkl / TMDB-account OAuth connectors, Letterboxd import preview UI, a cached local taste summary, recency weighting, and separate per-provider copies of the same title (one canonical row per title; the last import wins). No AI path receives stored ratings today.
+
+### Verification
+Run here: `tsc`, `oxlint`, `vite build`, `npm audit`, and Node unit tests for the AI engine/diagnostics/integrity/SHA-256, Worker route, manifest generator, profile storage/migration/taste-memory/IMDb parser. Settings cards and the `llm.ts` lifecycle were exercised once in a simulated DOM (jsdom). **Not run:** the Playwright browser suites (no browser available), real model downloads/inference, real checksum generation (huggingface.co unreachable here), the deployed site.
+
 ## [Bug Fix For v1.13.0]
 
 ### Fixed
