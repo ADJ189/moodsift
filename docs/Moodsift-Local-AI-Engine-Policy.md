@@ -49,6 +49,38 @@ Pinned revisions improve reproducibility but do not remove the need to verify th
 9. **Use deterministic decoding and strict output checks.** Do not ask the model for chain-of-thought. Limit output to one sentence / no more than 20 words. Reject malformed, empty, excessively long or obvious preamble/refusal output. These checks verify format and usability; they are **not a semantic fact-check**.
 10. **Fall back safely.** A failed generation returns the supplied rule-based reasons. A generation timeout terminates a wedged worker so later requests do not queue behind it indefinitely. Never block movie discovery, scoring, or results on local AI.
 
+## Diagnostics, integrity and recommendations (v1.13.5)
+
+**Settings → AI engine → Test on this device** runs the *same* load path as normal use (`src/lib/ai-engine.ts`): the same worker, the same mode, the same candidate policy and the same start-up checks. A diagnostic that could pass while the real feature fails is not allowed to exist.
+
+### Diagnostic order
+
+1. **Device signals** — WebGPU adapter + `shader-f16`, `navigator.deviceMemory` (when present), logical cores, mobile/touch hints, `crossOriginIsolated`. Estimates only.
+2. **Runtime** — the pinned Transformers.js build from the first working CDN (esm.sh → jsDelivr → unpkg). Every source that fails is recorded with its host.
+3. **ONNX WASM assets** — the library's own version-correct `.mjs`/`.wasm` URLs are probed with `HEAD`. If the default host is unreachable, the same version's files are tried on `fastly.jsdelivr.net` and `unpkg.com`; every failure names the exact resource.
+4. **Eligible candidates** — shown in policy order. Ineligible models are never downloaded "to test".
+5. **Integrity** — see below.
+6. **Real start-up** in the Web Worker (progress, cancellation, existing timeouts).
+7. **Smoke inference** — a fixed short prompt with a 30 s deadline, validated with the same output checks as production.
+8. **Optional format check** — three fixed Moodsift prompts; reports how many pass the *format* checks. Not a factuality test.
+9. **Result** — *Passed*, *Passed with fallback* (an earlier eligible candidate failed) or *Failed*, with model, backend, dtype, approximate weights size, start-up time and a readable reason. *Lightweight / data saver* reports that local inference is intentionally disabled and makes **zero** runtime, model, cache or worker requests.
+
+### Per-attempt failure records
+
+Each attempt keeps: model / backend / dtype / pinned revision; stage (`runtime`, `download`, `integrity`, `initialization`, `smoke inference`); failing resource as origin + path (query strings and credentials are always stripped); HTTP status; and a kind — `offline`, `timeout`, `cors`, `http`, `network`, `module`, `wasm`, `integrity`, `memory`, `empty-output`. Settings shows a concise summary of *all* attempts; **Copy diagnostic report** copies the detail. The report contains technical facts only (browser family + major version, stage, model revision, backend, host, error category, timings) — never quiz answers, ratings, searches, tokens or cookies — and is only produced when the person clicks the button.
+
+### Model integrity
+
+`src/data/ai-manifest.json` lists, per pinned revision and dtype, every required file with its **SHA-256 and size**. `src/lib/ai-integrity.ts` installs a verifying `env.fetch` (a supported Transformers.js hook): the response body streams through an incremental SHA-256 (`src/lib/sha256.ts`, no whole-file buffer) and is **errored at the end** on any size or digest mismatch, so the pipeline fails and the browser cache stores nothing for that file. A mismatch fails closed for that candidate (even if a library swallowed the error), removes the bad cached copy, and the next *eligible* local candidate is tried.
+
+States shown: **Verified** (every needed file matched), **Not yet verified** (no manifest entry, a file outside the manifest, or cached files with no recorded verification) and **Verification failed**. A file is never called verified merely because it downloaded. Cached files are re-checked by metadata (size + our own recorded verification) — not re-hashed on every page load; the diagnostic purges unrecorded cached copies so they are re-downloaded and verified.
+
+**The shipped manifest is intentionally empty of hashes.** Real hashes must come from the pinned upstream revisions in a trusted environment: run `npm run ai:manifest`, review the diff, commit it; `npm run ai:manifest:check` is the release gate. Until then every model honestly reports *Not yet verified*.
+
+### Recommendations
+
+After a fallback succeeds the card says, for example, *"SmolLM2-360M could not start. We recommend Fastest (SmolLM2-135M) on this device."* with **Use recommended mode** / **Keep current setting**. The saved mode changes **only** when the person clicks the first button. If every failure was a network problem no mode change is suggested (a smaller model would hit the same blocked host). A recommendation is always a local mode or data saver — never cloud AI.
+
 ## Why small models are appropriate
 
 Moodsift's local task is intentionally narrow: turn a title, quiz/search summary, and already-computed reasons into one concise explanation. It does not need a general chatbot, long-context summarizer, or a model that ranks the catalogue. Model choice should be based on Moodsift-specific groundedness, relevance, instruction compliance, load size, warmed latency and stability—not parameter count or general-purpose leaderboard rankings alone.
@@ -67,6 +99,8 @@ This repository change does not implement step 4. The existing Cloudflare endpoi
 
 ## Source areas changed
 
+v1.13.5 adds: `src/lib/ai-engine.ts` (decision logic with injected environment), `src/lib/ai-diagnostics.ts`, `src/lib/ai-diagnostics-ui.ts`, `src/lib/ai-integrity.ts`, `src/lib/sha256.ts`, `src/data/ai-manifest.json`, `scripts/generate-ai-manifest.mjs`; `src/lib/ai-worker.ts` is now only the wiring. Earlier areas:
+
 - `src/lib/ai-settings.ts`: saved priority options and user-facing mode descriptions.
 - `src/lib/settings-panel.ts`: the AI engine settings tab.
 - `src/lib/ai-worker.ts`: resource-first candidate order, exact model IDs/dtypes, loading stages, smoke check, deterministic generation, output checks, and serial worker queue.
@@ -77,7 +111,4 @@ This repository change does not implement step 4. The existing Cloudflare endpoi
 
 ## Verification status
 
-- Changed TypeScript files passed a source-only TypeScript check using the globally installed compiler and temporary declarations for external CSS modules.
-- Syntax transpilation passed for the changed TypeScript files.
-- Full `npm run build`, Oxlint, and Playwright tests could not be executed in this environment because npm dependency downloads failed with registry DNS errors (`EAI_AGAIN`). They must run in a network-enabled checkout before merge/release.
-- Actual model inference benchmarks and model-output quality scoring were not run here. The included browser benchmark pack remains the way to measure real-device startup time, warmed latency, and human-rated groundedness/relevance.
+See the v1.13.5 entry in `CHANGELOG.md` for exactly what was run and what was not. In short: engine, integrity, diagnostics and Worker-route logic are unit-tested in Node; no real model download, real-device inference or real-browser run was performed. Do not publish any model/backend as "tested" from those results alone — the release gates in `nextupdate.md` §6 (real-device diagnostics for every advertised model/backend) still apply.

@@ -1,9 +1,9 @@
 {
   "name": "moodsift",
-  "version": "1.13.0",
+  "version": "1.13.5",
   "private": true,
   "type": "module",
-  "description": "Moodsift — a fast, framework-free movie & TV recommendation engine.",
+  "description": "Moodsift \u2014 a fast, framework-free movie & TV recommendation engine.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -17,7 +17,9 @@
     "deploy": "npm run build && wrangler deploy",
     "test": "playwright test --project=chromium-desktop --project=chromium-mobile",
     "test:visual": "VISUAL=1 playwright test --project=chromium-desktop visual.spec.ts",
-    "test:install": "playwright install --with-deps chromium"
+    "test:install": "playwright install --with-deps chromium",
+    "ai:manifest": "node scripts/generate-ai-manifest.mjs",
+    "ai:manifest:check": "node scripts/generate-ai-manifest.mjs --check"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
@@ -29,7 +31,7 @@
     "wrangler": "^4.151.1"
   },
   "overrides": {
-    "undici": "7.30.0",
+    "undici": "7.30.1",
     "sharp": "0.35.5"
   },
   "dependencies": {
@@ -42,6 +44,7 @@
     "@fontsource-variable/sora": "5.3.0",
     "@fontsource-variable/space-grotesk": "5.3.0",
     "@fontsource/ibm-plex-mono": "5.3.0",
-    "@fontsource/ibm-plex-sans": "5.3.0"
+    "@fontsource/ibm-plex-sans": "5.3.0",
+    "lz-string": "1.5.0"
   }
 }

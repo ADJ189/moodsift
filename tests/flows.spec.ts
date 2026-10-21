@@ -1,11 +1,20 @@
 import { completeQuiz, expect, IMPORT_FILMS, rateCards, test, toResults } from './fixtures';
 
-const PROFILE = 'cinematch.profile.v1';
-const history = (page: import('@playwright/test').Page) =>
-  page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? '{"history":[],"watchlist":[]}'), PROFILE) as Promise<{
+import { decodeProfileRecord } from '../src/lib/profile-codec';
+
+// v1.13.5: the profile is stored compressed under cinematch.profile.v2 (the
+// legacy plain key is only read once, for migration). Tests read it through
+// the same codec the app uses.
+const PROFILE_V1 = 'cinematch.profile.v1';
+const PROFILE_V2 = 'cinematch.profile.v2';
+const history = async (page: import('@playwright/test').Page) => {
+  const raw = await page.evaluate((k) => localStorage.getItem(k), PROFILE_V2);
+  const decoded = raw ? decodeProfileRecord(raw) : null;
+  return (decoded?.ok ? JSON.parse(decoded.json) : { history: [], watchlist: [] }) as {
     history: { id: number; tmdbType: string; title: string; source: string; rating: number }[];
     watchlist: { id: number; tmdbType: string }[];
-  }>;
+  };
+};
 
 test.describe('core flow', () => {
   test('quiz → rating → results works end to end', async ({ page, mock }) => {
@@ -23,11 +32,14 @@ test.describe('core flow', () => {
     await completeQuiz(page);
     await toResults(page);
     // rate + save two titles that share an id but differ in media type, via the profile API surface
-    await page.evaluate((k) => {
-      const p = JSON.parse(localStorage.getItem(k) ?? '{}');
+    // Inject as a LEGACY plain-JSON profile (and drop the v2 record) so the
+    // app's v1 → v2 migration path is what ingests it on reload.
+    await page.evaluate(([k, k2]) => {
+      const p = { version: 1, id: 'p-legacy', displayName: 'Tester', avatarColor: '#aaaaaa', createdAt: 1, lastVisitAt: 1, watchlist: [], history: [] as unknown[] };
+      localStorage.removeItem(k2!);
       p.history = [...(p.history ?? []), { id: 1399, title: 'Movie 1399', year: 2000, type: 'movie', tmdbType: 'movie', posterPath: null, rating: 2, source: 'result', genres: [], vibe: [], at: 1 }, { id: 1399, title: 'Show 1399', year: 2010, type: 'series', tmdbType: 'tv', posterPath: null, rating: 5, source: 'result', genres: [], vibe: [], at: 2 }];
-      localStorage.setItem(k, JSON.stringify(p));
-    }, PROFILE);
+      localStorage.setItem(k!, JSON.stringify(p));
+    }, [PROFILE_V1, PROFILE_V2]);
     await page.reload();
     const h = (await history(page)).history.filter((x) => x.id === 1399);
     expect(h.map((x) => x.tmdbType).sort()).toEqual(['movie', 'tv']);

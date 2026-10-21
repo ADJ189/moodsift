@@ -535,6 +535,27 @@ export async function findCatalogItem(title: string, year: number, signal?: Abor
   return closest(found);
 }
 
+/**
+ * Resolves an IMDb `tt…` id to a CatalogItem via TMDB's external-id lookup —
+ * exact, so there is no title guessing between remakes. Returns null when TMDB
+ * has no usable movie/TV entry for it, or the id is not tt followed by 6–10
+ * digits. `preferTv` only breaks a tie when TMDB lists
+ * both a movie and a TV match for the same id.
+ * Request failures (HTTP, network, timeout or JSON parsing) propagate after
+ * the connector's retry. An aborted uncached request rejects with AbortError.
+ */
+export async function findByImdbId(imdbId: string, preferTv: boolean, signal?: AbortSignal): Promise<CatalogItem | null> {
+  if (!/^tt\d{6,10}$/.test(imdbId)) return null;
+  const data = await tmdbFetch<{ movie_results?: TmdbRawResult[]; tv_results?: TmdbRawResult[] }>(
+    `/find/${imdbId}`,
+    { external_source: 'imdb_id' },
+    signal
+  );
+  const movie = (data.movie_results ?? []).map((r) => toCatalogItem(r, 'movie')).find((i): i is CatalogItem => i !== null) ?? null;
+  const tv = (data.tv_results ?? []).map((r) => toCatalogItem(r, 'tv')).find((i): i is CatalogItem => i !== null) ?? null;
+  return preferTv ? (tv ?? movie) : (movie ?? tv);
+}
+
 interface TmdbMultiSearchRaw extends TmdbRawResult {
   media_type: 'movie' | 'tv' | 'person';
 }

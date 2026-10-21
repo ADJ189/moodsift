@@ -35,28 +35,28 @@ export const AI_MODE_OPTIONS: readonly AiModeOption[] = [
     label: 'Best quality',
     summary: 'Strongest model your device can safely run.',
     detail:
-      'Prefers Qwen2.5-0.5B on devices that report enough memory and have a usable GPU or a fast multi-core CPU, then falls back to smaller models. Biggest download and slowest start.',
+      'Tries the strongest model allowed by device checks (Qwen2.5-0.5B where the device qualifies), then falls back to smaller ones. Larger download and higher memory/startup cost.',
   },
   {
     id: 'balanced',
     label: 'Balanced',
     summary: 'Good writing without a big download. (Default)',
     detail:
-      'Starts with SmolLM2-360M on eligible devices and uses the smaller SmolLM2-135M on constrained devices or if the first model cannot start.',
+      'Uses a mid-sized model (SmolLM2-360M) when eligible; falls back to the small SmolLM2-135M on constrained devices or if the first model cannot start.',
   },
   {
     id: 'fastest',
     label: 'Fastest',
     summary: 'Smallest tested model first.',
     detail:
-      'Starts with SmolLM2-135M. A larger model is only tried if the smaller one cannot load or fails its start-up check. Shortest download, plainest sentences.',
+      'Starts with the smallest model (SmolLM2-135M) for a lower download and start-up cost; explanations may be simpler. A larger model is only tried if it cannot start.',
   },
   {
     id: 'lightweight',
     label: 'Lightweight / data saver',
     summary: 'No AI download at all.',
     detail:
-      'No model is downloaded and nothing runs on your device. Results keep their original rule-based reasons. This never switches to a cloud service.',
+      'Does not download or run a model. Keeps rule-based explanations and does not use cloud AI.',
   },
 ];
 
