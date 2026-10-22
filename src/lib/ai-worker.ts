@@ -21,7 +21,7 @@ import type { ManifestFileShape } from './ai-integrity';
 import type { ResourceSnapshot } from './ai-policy';
 
 /** Runtime source order. Exact pins only; never a range or `latest`. */
-export const TRANSFORMERS_VERSION = '4.2.0';
+export const TRANSFORMERS_VERSION = '4.3.1';
 const JS_CDN_SOURCES = [
   `https://esm.sh/@huggingface/transformers@${TRANSFORMERS_VERSION}`,
   `https://cdn.jsdelivr.net/npm/@huggingface/transformers@${TRANSFORMERS_VERSION}/+esm`,
