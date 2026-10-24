@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## [Unreleased]
+## [BUG Fix For v1.13.5]
 
 ### Fixed
 - Preserve keyboard focus when starting, cancelling or finishing local AI diagnostics, and avoid mode recommendations after network-only fallback failures.
