@@ -1,7 +1,7 @@
 # Moodsift Visual Redesign & Settings Architecture
 
-**Status:** Approved visual direction; implementation specification  
-**Applies to:** Moodsift v1.11.x  
+**Status:** Implemented in v1.13.0; kept as the design record  
+**Applies to:** Moodsift v1.11.x (written then; implemented in v1.13.0 — see `CHANGELOG.md` for where the shipped version differs)  
 **Implementation style:** Preserve the existing framework-free TypeScript + Vite architecture.
 
 ## 1. Goal
