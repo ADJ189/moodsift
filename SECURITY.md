@@ -25,10 +25,18 @@ the fix's changelog entry unless you'd prefer to stay anonymous.
 
 - Client-side app: the primary risk surface is XSS via untrusted API
   responses (TMDB/OMDb) rendered into the DOM, and any handling of
-  user-supplied files (the Letterboxd CSV importer).
+  user-supplied files (the Letterboxd and IMDb CSV importers and the
+  taste-memory backup import, which rejects oversized files and
+  sanitises every field on load).
 - The optional on-device AI model is loaded from a CDN at runtime and never
-  sends data anywhere; the optional `worker/index.ts` `/api/recommend` route
-  only ever forwards a pre-filtered candidate list, never raw user input, to
-  Cloudflare Workers AI.
-- `npm audit` is expected to report 0 vulnerabilities; Dependabot is
-  configured for weekly npm checks.
+  sends data anywhere; downloaded model files are verified against pinned
+  sizes and SHA-256 checksums where the committed manifest has them, and a
+  mismatch fails closed. The optional `worker/index.ts` `/api/recommend`
+  route is off by default (no AI binding) and only ever forwards a
+  pre-filtered candidate list, never raw user input, to Cloudflare Workers
+  AI.
+- The Worker enforces `frame-ancestors 'self'`; the full Content Security
+  Policy currently ships as Report-Only until it has been validated in a
+  real browser.
+- CI runs `npm audit --audit-level=high` and Dependabot is configured for
+  weekly npm checks.

@@ -53,6 +53,8 @@ Seven quick questions, a few titles you already know, and a live pull from thous
 ### Personalize — a profile with no account
 
 - **Local profile.** Created automatically on first visit: your rating history and watchlist persist across sessions, and every past rating feeds back into the engine, so a returning session starts informed instead of cold. No signup, no sync, nothing sent anywhere — reachable any time from the profile icon in the header, with a one-click reset. Choose from 11 colors and a curated set of film-themed icons for your avatar.
+- **Taste memory controls.** Settings → Taste memory shows how your profile is stored on this device (compressed local storage — storage optimisation, not encryption), lets you pause personalization, export or import a backup, and erase everything. Unreadable saved data is set aside, never overwritten or deleted.
+- **Import your ratings.** On the rating step, import a Letterboxd or IMDb ratings CSV (the provider is detected from the file's header row). Parsing happens entirely in your browser.
 - **Watchlist.** Bookmark any result from its card or the detail sheet; manage the list from the header on any screen.
 - **Compare shortlist.** Pick 2–3 results and compare them side by side (type, year, genres, TMDB rating, match reasons; unavailable fields say so rather than guessing).
 
@@ -64,7 +66,7 @@ Seven quick questions, a few titles you already know, and a live pull from thous
 
 ### Appearance — make it yours
 
-- **Settings workspace / Theme Studio** (Overview · Cards & layout · Search · Theme · Readability · Motion & performance · AI engine · Advanced). Pick a **card type** (Interactive, Poster gallery, Editorial, Compact), a **design style** (Cinematic, Minimal, Film journal, Glass, Neon noir) and a **search type** (Grouped, Compact, Expanded, Full page) independently, or start from a preset. These change presentation only. The theme tools: System/Dark/Light, 8 hand-tuned palettes (each with separate, contrast-checked dark and light maps), custom accent, 8 self-hosted font pairings, text size, line spacing, content width, density, poster size, card corners, results layout, motion profile, and particle level. Live preview, undo/redo, up to three saved looks, versioned export/import, and reset (appearance only — never ratings or watchlist).
+- **Settings workspace / Theme Studio** (Overview · Cards & layout · Search · Theme · Readability · Motion & performance · AI engine · Taste memory · Advanced). Pick a **card type** (Interactive, Poster gallery, Editorial, Compact), a **design style** (Cinematic, Minimal, Film journal, Glass, Neon noir) and a **search type** (Grouped, Compact, Expanded, Full page) independently, or start from a preset. These change presentation only. The theme tools: System/Dark/Light, 8 hand-tuned palettes (each with separate, contrast-checked dark and light maps), custom accent, 8 self-hosted font pairings, text size, line spacing, content width, density, poster size, card corners, results layout, motion profile, and particle level. Live preview, undo/redo, up to three saved looks, versioned export/import, and reset (appearance only — never ratings or watchlist).
 - **Command menu** (<kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>K</kbd> or <kbd>/</kbd>) and shortcut help (<kbd>?</kbd>).
 - **Accessible by default.** Keyboard- and screen-reader-operable, axe-tested, WCAG AA text contrast across every palette, and Motion: Off always wins.
 
@@ -73,6 +75,7 @@ Seven quick questions, a few titles you already know, and a live pull from thous
 - Turns each result's rule-based reasons into one natural sentence, running entirely in a Web Worker. Picks a model and quantization tier from your device's memory, core count and WebGPU support, and falls through several CDN options and a short, resource-checked list of pinned models until one fully loads and passes a start-up check.
 - No API key; titles, quiz answers, and prompts are not sent for AI processing. Runtime and model downloads still send request metadata, including your IP address, to the download hosts.
 - Choose the priority under Settings → AI engine (Best quality / Balanced / Fastest / Lightweight data saver). It only rewords the rule-based reasons — ranking stays deterministic. Opt-in, never a dependency.
+- **Test on this device** (same tab) runs the same load path as normal use and produces a privacy-safe report you can copy. Downloaded model files are checked against pinned sizes and SHA-256 checksums where the committed manifest has them; a mismatch fails closed and falls through to the next candidate.
 
 ### Privacy
 
@@ -148,7 +151,8 @@ Fill in `.env`:
 | **TMDB** | Required | Live catalog, search, similarity, streaming availability |
 | **OMDb** | Optional | Rotten Tomatoes / Metacritic / IMDb as a scoring signal |
 | **Letterboxd** | Optional | Import a `ratings.csv` export for taste calibration |
-| **Local profile** | Always on | localStorage identity, rating history, watchlist — this browser only |
+| **IMDb** | Optional | Import an IMDb ratings CSV export (1–10 mapped to 0.5–5 stars; TV episodes and games are skipped and counted) |
+| **Local profile** | Always on | Compressed localStorage identity, rating history, watchlist, with taste-memory controls — this browser only |
 | **On-device AI** | Optional, opt-in | Loads a small quantized model from CDN at runtime (never part of `npm install` — see the comment at the top of `src/lib/ai-worker.ts`) |
 
 ## Testing
@@ -159,7 +163,7 @@ npm test               # builds with a dummy TMDB key, mocks TMDB, runs desktop 
 npm run test:visual    # opt-in screenshot comparisons
 ```
 
-The suite covers appearance persistence/validation, the quiz → rating → results flow, rating a result, movie/TV id collisions, library re-import semantics, compare, the command menu, keyboard/focus rules, and axe accessibility scans. Visual baselines are intentionally **not committed** (rendering differs between machines): generate them where they'll be compared with `npm run test:visual -- --update-snapshots`. CI also runs typecheck, lint, build, and Lighthouse.
+The suite covers appearance persistence/validation, the quiz → rating → results flow, rating a result, movie/TV id collisions, library re-import semantics, compare, the command menu, keyboard/focus rules, profile storage and taste-memory controls, the local-AI policy/engine/integrity/diagnostics logic, the Worker route, and axe accessibility scans. Real model downloads and real-device inference are not exercised by the suite. Visual baselines are intentionally **not committed** (rendering differs between machines): generate them where they'll be compared with `npm run test:visual -- --update-snapshots`. CI also runs typecheck, lint, build, and Lighthouse.
 
 ## Deployment
 
@@ -188,7 +192,11 @@ src/
     rating-pool.ts   builds the calibration list — ~75% genre-weighted to the quiz's mood
     omdb.ts          optional secondary rating signal
     letterboxd.ts    parses a Letterboxd ratings.csv export
-    profile.ts       local profile — identity, avatar, rating history, watchlist (localStorage)
+    imdb.ts          parses an IMDb ratings CSV export and detects which provider a file is from
+    profile.ts       local profile — identity, avatar, rating history, watchlist, taste-memory controls
+    profile-codec.ts versioned `MOODPROFILE|2|lz-utf16|…` compressed storage format (not encryption)
+    storage.ts       safe localStorage wrappers (storage can be blocked or full)
+    taste-memory-ui.ts Settings → Taste memory: status, pause, backup export/import, erase
     media-key.ts     `movie:123` / `tv:123` identity used for ratings, watchlist, caches
     store.ts         small pub-sub store — the entire "framework"
     dom.ts           tiny element-builder helper
@@ -205,20 +213,27 @@ src/
     ai-worker.ts     the on-device model — candidate list, staged load, smoke check, serial queue
     ai-policy.ts     pure policy: model catalogue, eligibility, prompt and output checks
     ai-settings.ts   the AI engine mode (own storage key, independent of appearance)
+    ai-engine.ts     decision logic for loading and recommending a model, with the environment injected so it is unit-tested in Node
+    ai-integrity.ts  streaming size + SHA-256 verification of model files against the manifest
+    sha256.ts        small streaming SHA-256
+    ai-diagnostics.ts, ai-diagnostics-ui.ts   "Test on this device" — pure report/classification logic, and its UI
+    app-version.ts   app version string for diagnostic reports (must match package.json)
   screens/           landing, quiz, rating, results, search — one module each, lazily loaded except landing
   components/        landing-carousel.ts — the landing page's popular-titles gallery (Pointer Events + CSS transforms)
-  data/              quiz questions, taste-calibration seed titles
+  data/              quiz questions, taste-calibration seed titles, ai-manifest.json (pinned model files + checksums)
+scripts/             generate-ai-manifest.mjs — regenerates/checks the AI model manifest
 worker/
   index.ts           Cloudflare Worker entry — serves dist/ via the ASSETS binding, handles
-                      POST /api/recommend (optional Workers AI re-ranking), and sets the COOP/COEP
+                      POST /api/recommend (optional, off by default), and sets the COOP/COEP
                       (`credentialless`) headers the on-device AI's multi-threaded WASM path needs
 public/              logo, favicons, app icons, social image
 assets/brand/        full-resolution logo masters (not served)
-docs/                Moodsift-Local-AI-Engine-Policy.md
-tests/               Playwright specs
+docs/                Moodsift-Local-AI-Engine-Policy.md, Moodsift-Taste-Memory.md, visual-redesign-spec.md
+tests/               Playwright specs + fixtures.ts (mocked TMDB)
+AGENTS.md            instructions for AI coding agents
 ```
 
-**The client-side engine is fully self-sufficient.** `worker/index.ts`'s `/api/recommend` route is an enhancement layer, not a dependency — nothing in `src/` calls it. It is same-origin only, size/shape-validated, redacts provider errors, and supports an optional per-IP rate limit (see the commented `ratelimits` example in `wrangler.jsonc`). To use it, turn the AI binding on in the Cloudflare dashboard (Settings → Bindings), not just in `wrangler.jsonc`.
+**The client-side engine is fully self-sufficient.** `worker/index.ts`'s `/api/recommend` route is an enhancement layer, not a dependency — nothing in `src/` calls it. It is same-origin only, size/shape-validated, redacts provider errors, and supports an optional per-IP rate limit (see the commented `ratelimits` example in `wrangler.jsonc`). It is **off by default**: the `ai` binding is commented out in `wrangler.jsonc`, the route returns 503 without it, and it fails closed without the shared rate limiter. To use it, turn the AI binding on in the Cloudflare dashboard (Settings → Bindings), not just in `wrangler.jsonc`.
 
 ### Search vs. the quiz engine
 
@@ -260,15 +275,17 @@ Two related hardening fixes went in alongside it: a real `navigator.gpu.requestA
 Issues and PRs are welcome. Before opening a PR:
 
 ```bash
-npm run typecheck   # must be clean — strict mode, covers src/ and worker/
+npm run typecheck   # must be clean — strict mode, covers src/, worker/ and tests/
+npm run lint        # must be clean
 npm run build       # must succeed
+npm test            # Playwright + axe
 ```
 
 Keep the "no framework" constraint in mind — new UI goes through `src/lib/dom.ts`'s `el()` helper, not a new dependency. See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full workflow and scope, and the [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 ## Privacy
 
-No accounts, no analytics, no tracking — everything Moodsift remembers about you lives in your browser's localStorage, and the only network calls are the direct TMDB/OMDb requests needed to fetch and score titles. See [PRIVACY.md](./PRIVACY.md) for the full breakdown.
+No accounts, no analytics, no tracking — everything Moodsift remembers about you lives in your browser's localStorage, and the only network calls are the direct TMDB/OMDb requests needed to fetch and score titles (plus, only if you opt in, the on-device AI's runtime and model downloads). See [PRIVACY.md](./PRIVACY.md) for the full breakdown.
 
 ## Security
 

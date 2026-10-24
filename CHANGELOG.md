@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## [Housekeeping — docs and package.json]
+
+### Fixed
+- `package.json` listed `@types/node` and `oxlint` twice in `devDependencies`. Duplicate JSON keys are ambiguous, so only the last value was ever used. The duplicates are removed and the values npm actually resolved (`@types/node` 26.6.5, `oxlint` ^1.88.0) are kept, so `package-lock.json` is unchanged. Note: CI runs Node 22 while `@types/node` is 26 — consider aligning them in a separate change.
+
+### Changed
+- Documentation brought up to date with v1.13.5: `README.md` (IMDb import, taste-memory controls, diagnostics and checksums, Architecture file list, lint/test steps), `CONTRIBUTING.md` (it said there was no automated test suite), `PRIVACY.md` (compressed storage, taste memory, IMDb, diagnostics, `/api/recommend` off by default), `SECURITY.md`, and the headers of the two `docs/` specs.
+- Added `AGENTS.md` with instructions for AI coding agents.
+
+### Removed
+- `eslint.config.js`: dead file. The project lints with oxlint (`.oxlintrc.json`); ESLint and typescript-eslint are not dependencies and nothing referenced the config.
+
 ## [BUG Fix For v1.13.5]
 
 ### Fixed
