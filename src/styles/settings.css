@@ -1470,6 +1470,10 @@
 }
 
 @media (min-width: 900px) and (min-height: 920px) {
+  .ap-body {
+    scroll-padding-top: var(--ap-stage-scroll-padding, 0px);
+  }
+
   .ap-stage-wrap {
     position: sticky;
     top: 0;

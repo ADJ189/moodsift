@@ -21,6 +21,9 @@ Presentation-only redesign of the Settings workspace, following `Moodsift-Settin
 ### Added
 - `tests/settings-studio.spec.ts`.
 
+### Fixed
+- Keep controls scrolled into view below the sticky preview stage using its measured height, including after section and text-size changes.
+
 ### Not in this change
 Motion micro-previews (no autoplay demos were added), new fonts (only the bundled ones are used), and committed screenshot baselines.
 

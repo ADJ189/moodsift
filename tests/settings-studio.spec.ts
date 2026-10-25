@@ -11,6 +11,49 @@ const html = (page: Page) => page.locator('html');
 const SECTIONS = ['Overview', 'Cards & layout', 'Search', 'Theme', 'Readability', 'Motion & performance', 'AI engine', 'Taste memory', 'Advanced'];
 
 test.describe('settings studio', () => {
+  test('scrolling controls into view clears the measured sticky stage', async ({ page, mock }) => {
+    void mock;
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await page.goto('/');
+    await openSettings(page, 'Readability');
+    const body = page.locator('.ap-body');
+    const stage = page.locator('.ap-stage-wrap');
+    const expectStagePadding = async () => {
+      await expect.poll(async () => {
+        const padding = await body.evaluate((n) => {
+          const style = getComputedStyle(n);
+          return parseFloat(style.scrollPaddingTop) - parseFloat(style.paddingTop);
+        });
+        const height = (await stage.boundingBox())!.height;
+        return Math.abs(padding - height);
+      }).toBeLessThan(1);
+    };
+    await expectStagePadding();
+    const before = (await stage.boundingBox())!.height;
+    await page.getByRole('radio', { name: '125%' }).click();
+    await expect.poll(async () => (await stage.boundingBox())!.height).not.toBe(before);
+    await expectStagePadding();
+    const control = page.getByRole('radio', { name: '125%' });
+    await control.evaluate((n) => {
+      n.focus();
+      n.scrollIntoView({ block: 'start' });
+    });
+    await expect(control).toBeFocused();
+    const stageBox = (await stage.boundingBox())!;
+    expect((await control.boundingBox())!.y).toBeGreaterThanOrEqual(stageBox.y + stageBox.height - 1);
+
+    await page.getByRole('tab', { name: 'Search', exact: true }).click();
+    await expectStagePadding();
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(body).toHaveCSS('scroll-padding-top', 'auto');
+    await page.setViewportSize({ width: 800, height: 1000 });
+    await expect(body).toHaveCSS('scroll-padding-top', 'auto');
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await expectStagePadding();
+    await page.getByRole('tab', { name: 'Advanced', exact: true }).click();
+    await expect(body).toHaveCSS('scroll-padding-top', '0px');
+  });
+
   test('rail tabs keep plain accessible names; index numbers are decorative', async ({ page, mock }) => {
     void mock;
     await page.goto('/');

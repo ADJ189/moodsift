@@ -974,6 +974,13 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
 
   const built = new Map<SettingsSection, HTMLElement>();
   const body = el('div', { class: 'ap-body', id: 'ap-body', role: 'tabpanel' });
+  // Sticky positioning starts inside the body's padding, so reserve both.
+  function updateStageScrollPadding() {
+    const stage = body.querySelector<HTMLElement>('.ap-stage-wrap');
+    const padding = stage ? stage.getBoundingClientRect().height + parseFloat(getComputedStyle(body).paddingTop) : 0;
+    body.style.setProperty('--ap-stage-scroll-padding', `${padding}px`);
+  }
+  const stageObserver = new ResizeObserver(updateStageScrollPadding);
   const tabButtons = SECTIONS.map((t) => {
     const b = el(
       'button',
@@ -1014,6 +1021,7 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
       node = el('div', { class: 'ap-pane', 'data-pane': id }, [paneHead(id), panes[id]()]);
       built.set(id, node);
     }
+    stageObserver.disconnect();
     body.replaceChildren(node);
     body.setAttribute('aria-labelledby', `ap-tab-${id}`);
     body.scrollTop = 0;
@@ -1031,6 +1039,9 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
     // The Compare/Restore row describes appearance only.
     studioRow.style.display = id === 'ai' || id === 'memory' ? 'none' : 'flex';
     runSync();
+    updateStageScrollPadding();
+    const stage = body.querySelector<HTMLElement>('.ap-stage-wrap');
+    if (stage) stageObserver.observe(stage, { box: 'border-box' });
     if (focusTab) tabButtons.find((t) => t.id === id)?.b.focus({ preventScroll: true });
   }
 
@@ -1115,6 +1126,7 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
     openPanel = null;
     peekBaseline(false); // never leave the page showing a comparison preview
     unsubscribe();
+    stageObserver.disconnect();
     for (const off of aiModeUnsubscribers) off();
     aiModeUnsubscribers.length = 0;
     scrim.classList.add('closing');
