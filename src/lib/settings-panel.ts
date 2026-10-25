@@ -57,7 +57,7 @@ import {
 import { el } from './dom';
 import { ensureFontLoaded, FONT_PRESETS } from './fonts';
 import { ICON } from './icons';
-import { cardPreview, layoutPreview, searchPreview, stylePreview } from './settings-previews';
+import { cardPreview, cardsStage, layoutPreview, presetPreview, searchPreview, searchStage, stylePreview, themeStage } from './settings-previews';
 import { showToast } from './toast';
 
 export type SettingsSection = 'overview' | 'cards' | 'search' | 'theme' | 'readability' | 'motion' | 'ai' | 'memory' | 'advanced';
@@ -65,16 +65,19 @@ export type SettingsSection = 'overview' | 'cards' | 'search' | 'theme' | 'reada
 type LegacyTab = 'themes' | 'typography' | 'layout' | 'accessibility';
 const LEGACY: Record<LegacyTab, SettingsSection> = { themes: 'theme', typography: 'readability', layout: 'cards', accessibility: 'readability' };
 
-const SECTIONS: { id: SettingsSection; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'cards', label: 'Cards & layout' },
-  { id: 'search', label: 'Search' },
-  { id: 'theme', label: 'Theme' },
-  { id: 'readability', label: 'Readability' },
-  { id: 'motion', label: 'Motion & performance' },
-  { id: 'ai', label: 'AI engine' },
-  { id: 'memory', label: 'Taste memory' },
-  { id: 'advanced', label: 'Advanced' },
+/** `num` and `group` are visual only (the rail's index numbers and captions);
+ * the accessible name of each tab stays its plain `label`. `title`/`lede` head
+ * the pane. Section ids never change — they are the public deep-link names. */
+const SECTIONS: { id: SettingsSection; label: string; num: string; group: string; title: string; lede: string }[] = [
+  { id: 'overview', label: 'Overview', num: '01', group: 'Studio', title: 'Your viewing experience', lede: 'These choices change how Moodsift looks and feels. They never change what it recommends, and they stay on this device.' },
+  { id: 'cards', label: 'Cards & layout', num: '02', group: 'Appearance', title: 'Composition desk', lede: 'Compose how each title is presented and how results are arranged. Card type and layout are chosen separately.' },
+  { id: 'search', label: 'Search', num: '03', group: '', title: 'Discovery instrument', lede: 'Choose how suggestions appear as you type. Every option searches the same way \u2014 only the presentation changes.' },
+  { id: 'theme', label: 'Theme', num: '04', group: '', title: 'Colour grading', lede: 'Grade the whole look: light or dark, palette, surface treatment and accent.' },
+  { id: 'readability', label: 'Readability', num: '05', group: '', title: 'Viewing comfort', lede: 'Tune text, contrast and surfaces for comfortable reading. These are comfort and accessibility controls, not styles.' },
+  { id: 'motion', label: 'Motion & performance', num: '06', group: '', title: 'Effects console', lede: 'From overall movement to optional decorative effects. Reduced motion and Off always win.' },
+  { id: 'ai', label: 'AI engine', num: '07', group: 'Engine', title: 'Signal lab', lede: 'On-device AI only rewords the reasons behind each pick. This is a technical section: what you see here comes from real tests on this device.' },
+  { id: 'memory', label: 'Taste memory', num: '08', group: 'Your data', title: 'Personal data', lede: 'Your ratings and watchlist, stored in this browser. This is personal data, separate from appearance \u2014 appearance Undo and Reset never touch it.' },
+  { id: 'advanced', label: 'Advanced', num: '09', group: 'Details', title: 'Deliberate details', lede: 'Back up, share or reset appearance. Each action says exactly what it covers.' },
 ];
 
 const ACCENT_CHOICES = ['#a78bfa', '#38bdf8', '#34d399', '#fbbf24', '#fb7185', '#f472b6', '#e08a5c'];
@@ -187,7 +190,7 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
       }
     });
     wireRadioKeys(group, buttons);
-    return el('div', { class: 'setting' }, [
+    return el('div', { class: 'setting setting-row' }, [
       el('div', { class: 'setting-label' }, [label]),
       group,
       ...(hint ? [el('p', { class: 'setting-hint' }, [hint])] : []),
@@ -196,7 +199,7 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
 
   /** Visual option tiles: a preview, a name, one line of description and a
    * clear selected state. Same radiogroup semantics as `choice`. */
-  function tiles<K extends keyof AppearancePreferences>(label: string, key: K, options: TileOption<AppearancePreferences[K]>[], hint?: string, cols = 2): HTMLElement {
+  function tiles<K extends keyof AppearancePreferences>(label: string, key: K, options: TileOption<AppearancePreferences[K]>[], hint?: string, cols = 2, rows = false): HTMLElement {
     const items = options.map((o) => {
       const b = el(
         'button',
@@ -209,7 +212,7 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
       );
       return { b, value: o.value };
     });
-    const group = el('div', { class: 'ap-tiles', role: 'radiogroup', 'aria-label': label, style: `--cols:${cols}` }, items.map((x) => x.b));
+    const group = el('div', { class: `ap-tiles${rows ? ' ap-rows' : ''}`, role: 'radiogroup', 'aria-label': label, style: `--cols:${cols}` }, items.map((x) => x.b));
     onChange(() => {
       const cur = getPreferences()[key];
       for (const { b, value } of items) {
@@ -247,8 +250,26 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
     return sectionResetButton('Reset this section', () => resetSection(section));
   }
 
-  function paneTitle(text: string): HTMLElement {
-    return el('h3', { class: 'ap-pane-title' }, [text]);
+  /** A titled group inside a pane: hairline rule, small index and a heading. */
+  function block(title: string, children: (Node | string)[], note?: string): HTMLElement {
+    return el('section', { class: 'ap-block' }, [
+      el('h4', { class: 'ap-block-title' }, [title]),
+      ...(note ? [el('p', { class: 'setting-hint' }, [note])] : []),
+      ...children,
+    ]);
+  }
+
+  /** The editorial head of a pane: index, kicker, title and one-line lede. */
+  function paneHead(id: SettingsSection): HTMLElement {
+    const m = SECTIONS.find((x) => x.id === id)!;
+    return el('header', { class: 'ap-pane-head' }, [
+      el('span', { class: 'ap-pane-num', 'aria-hidden': 'true' }, [m.num]),
+      el('div', { class: 'ap-pane-text' }, [
+        el('p', { class: 'ap-pane-kicker' }, [m.label]),
+        el('h3', { class: 'ap-pane-title' }, [m.title]),
+        el('p', { class: 'ap-pane-lede' }, [m.lede]),
+      ]),
+    ]);
   }
 
   // ── Overview ────────────────────────────────────────────────────────
@@ -260,14 +281,17 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
       { name: 'Design style', section: 'theme', text: () => label(STYLE_OPTIONS, getPreferences().designStyle) },
       { name: 'Search type', section: 'search', text: () => label(SEARCH_OPTIONS, getPreferences().searchType) },
     ];
+    // The current setup reads like a spec sheet: one hairline row per choice,
+    // each a direct link to the section that owns it.
     const summary = summaryItems.map((s) => {
       const value = el('span', { class: 'ap-summary-value' });
-      const b = el('button', { class: 'ap-summary', type: 'button', onclick: () => showSection(s.section, true) }, [el('span', { class: 'ap-summary-name' }, [s.name]), value]);
+      const b = el('button', { class: 'ap-summary', type: 'button', onclick: () => showSection(s.section, true) }, [
+        el('span', { class: 'ap-summary-name' }, [s.name]),
+        value,
+        el('span', { class: 'ap-summary-go', 'aria-hidden': 'true' }, ['Change \u2192']),
+      ]);
       return { b, value, s };
     });
-
-    const miniCard = el('div', { class: 'ap-mini', 'aria-hidden': 'true' });
-    const miniSearch = el('div', { class: 'ap-mini ap-mini-wide', 'aria-hidden': 'true' });
 
     const presets = STARTER_PRESETS.map((p) => {
       const b = el(
@@ -282,7 +306,7 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
           },
         },
         [
-          el('span', { class: 'ap-tile-preview', 'aria-hidden': 'true' }, [cardPreview(p.patch.cardType ?? 'interactive')]),
+          el('span', { class: 'ap-tile-preview', 'aria-hidden': 'true' }, [presetPreview(p.patch)]),
           el('span', { class: 'ap-tile-name' }, [p.id === 'cinematic' ? 'Cinematic (recommended)' : p.label]),
           el('span', { class: 'ap-tile-desc' }, [p.blurb]),
         ]
@@ -293,8 +317,6 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
     onChange(() => {
       const p = getPreferences();
       for (const { value, s } of summary) value.textContent = s.text();
-      miniCard.replaceChildren(cardPreview(p.cardType));
-      miniSearch.replaceChildren(searchPreview(p.searchType));
       const match = matchingStarterPreset(p);
       for (const { b, id } of presets) {
         if (id === match) b.setAttribute('aria-current', 'true');
@@ -304,15 +326,14 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
     });
 
     return el('div', { class: 'ap-section' }, [
-      el('p', { class: 'ap-lead' }, ['Make Moodsift yours']),
-      el('p', { class: 'setting-hint' }, ['These choices change how Moodsift looks and feels. They never change what it recommends, and they stay on this device.']),
-      el('div', { class: 'ap-summaries' }, summary.map((x) => x.b)),
-      el('div', { class: 'ap-mini-row' }, [miniCard, miniSearch]),
-      el('div', { class: 'setting' }, [
-        el('div', { class: 'setting-label' }, ['Starter presets']),
-        el('p', { class: 'setting-hint' }, ['A shortcut that sets ordinary options — you can change any of them afterwards. Text size, contrast and your motion setting are never lowered.']),
-        el('div', { class: 'ap-tiles', style: '--cols:2' }, presets.map((x) => x.b)),
-      ]),
+      // Two stages built once and driven by the live <html> attributes.
+      el('div', { class: 'ap-stage-row' }, [cardsStage(), searchStage()]),
+      block('Your current setup', [el('div', { class: 'ap-summaries' }, summary.map((x) => x.b))], 'Every change saves automatically and can be undone. Use Undo and Redo below, Compare with before, or Restore previous.'),
+      block(
+        'Starter presets',
+        [el('div', { class: 'ap-tiles', style: '--cols:2' }, presets.map((x) => x.b))],
+        'A shortcut that sets ordinary options \u2014 you can change any of them afterwards. Text size, contrast and your motion setting are never lowered.'
+      ),
     ]);
   }
 
@@ -320,21 +341,26 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
 
   function cardsPane(): HTMLElement {
     return el('div', { class: 'ap-section' }, [
-      tiles('Card type', 'cardType', CARD_OPTIONS, 'What is inside each title card. This is separate from how the cards are arranged, below.'),
-      tiles('Results layout', 'resultLayout', LAYOUT_OPTIONS, 'How the cards are arranged. Every layout keeps details, watchlist, compare and rating within reach. The top pick always gets its featured card.', 3),
-      choice('Poster size', 'posterSize', [
-        { value: 'small', label: 'Small' },
-        { value: 'medium', label: 'Medium' },
-        { value: 'large', label: 'Large' },
+      el('div', { class: 'ap-stage-wrap' }, [cardsStage()]),
+      block('Card and arrangement', [
+        tiles('Card type', 'cardType', CARD_OPTIONS, 'What is inside each title card. This is separate from how the cards are arranged, below.'),
+        tiles('Results layout', 'resultLayout', LAYOUT_OPTIONS, 'How the cards are arranged. Every layout keeps details, watchlist, compare and rating within reach. The top pick always gets its featured card.', 3),
       ]),
-      choice('Density', 'density', [
-        { value: 'comfortable', label: 'Comfortable' },
-        { value: 'compact', label: 'Compact' },
-      ], 'Density changes spacing only — touch targets keep their minimum size.'),
-      choice('Poster labels', 'posterLabels', [
-        { value: 'detailed', label: 'Detailed' },
-        { value: 'essential', label: 'Essential' },
-      ], 'Essential shows title, year and match on cards; the reason chips move to the detail sheet.'),
+      block('Proportions', [
+        choice('Poster size', 'posterSize', [
+          { value: 'small', label: 'Small' },
+          { value: 'medium', label: 'Medium' },
+          { value: 'large', label: 'Large' },
+        ]),
+        choice('Density', 'density', [
+          { value: 'comfortable', label: 'Comfortable' },
+          { value: 'compact', label: 'Compact' },
+        ], 'Density changes spacing only \u2014 touch targets keep their minimum size.'),
+        choice('Poster labels', 'posterLabels', [
+          { value: 'detailed', label: 'Detailed' },
+          { value: 'essential', label: 'Essential' },
+        ], 'Essential shows title, year and match on cards; the reason chips move to the detail sheet.'),
+      ]),
       disclosure('More layout details', [
         choice('Card corners', 'cardShape', [
           { value: 'sharp', label: 'Sharp' },
@@ -358,7 +384,7 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
         choice('Decorative grain', 'grain', [
           { value: 'off', label: 'Off' },
           { value: 'subtle', label: 'Subtle' },
-        ], 'A static texture on the landing page only — never an animated filter.'),
+        ], 'A static texture on the landing page only \u2014 never an animated filter.'),
       ]),
       sectionReset('layout'),
     ]);
@@ -367,16 +393,20 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
   // ── Search ──────────────────────────────────────────────────────────
 
   function searchPane(): HTMLElement {
-    const demo = el('div', { class: 'ap-demo', 'aria-hidden': 'true' });
-    onChange(() => demo.replaceChildren(searchPreview(getPreferences().searchType)));
     return el('div', { class: 'ap-section' }, [
-      tiles('Search type', 'searchType', SEARCH_OPTIONS, 'Every option searches the same titles and people the same way. This only changes how the results are presented.'),
-      el('div', { class: 'setting' }, [el('div', { class: 'setting-label' }, ['Preview']), el('p', { class: 'setting-hint' }, ['Sample results only — nothing is searched here.']), demo]),
+      el('div', { class: 'ap-stage-wrap' }, [searchStage()]),
+      tiles('Search type', 'searchType', SEARCH_OPTIONS, 'Every option searches the same titles and people the same way. This only changes how the results are presented \u2014 never the search scope or ranking.'),
       sectionReset('search'),
     ]);
   }
 
   // ── Theme ───────────────────────────────────────────────────────────
+
+  /** A coordinated mini-scene (background, poster, title line, accent button)
+   * rather than isolated colour dots. Colours come from the palette catalogue. */
+  function paletteScene(cls: string, bg: string, a: string, b: string): HTMLElement {
+    return el('i', { class: cls, style: `--sw-bg:${bg};--sw-a:${a};--sw-b:${b}` }, [el('b', { class: 'sw-poster' }), el('b', { class: 'sw-line' }), el('b', { class: 'sw-pill' })]);
+  }
 
   function themePane(): HTMLElement {
     const paletteBtns = PALETTES.map((p) => {
@@ -385,8 +415,8 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
         { class: 'palette-btn', type: 'button', role: 'radio', 'data-palette-id': p.id, onclick: () => updatePreferences({ palette: p.id, customAccent: undefined }) },
         [
           el('span', { class: 'palette-swatch', 'aria-hidden': 'true' }, [
-            el('i', { class: 'sw-dark', style: `background:${p.swatch[0]}` }, [el('b', { style: `background:${p.swatch[1]}` }), el('b', { style: `background:${p.swatch[2]}` })]),
-            el('i', { class: 'sw-light', style: `background:${p.swatch[3]}` }, [el('b', { style: `background:${p.swatch[4]}` }), el('b', { style: `background:${p.swatch[5]}` })]),
+            paletteScene('sw-dark', p.swatch[0], p.swatch[1], p.swatch[2]),
+            paletteScene('sw-light', p.swatch[3], p.swatch[4], p.swatch[5]),
           ]),
           el('span', { class: 'palette-name' }, [p.label]),
           el('span', { class: 'palette-mood' }, [p.mood]),
@@ -455,41 +485,50 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
     });
 
     return el('div', { class: 'ap-section' }, [
-      choice('Appearance', 'mode', [
-        { value: 'system', label: 'System' },
-        { value: 'dark', label: 'Dark' },
-        { value: 'light', label: 'Light' },
-      ], 'System follows your device until you pick Light or Dark.'),
-      tiles('Design style', 'designStyle', STYLE_OPTIONS, 'The surface treatment for cards and panels. It does not change your palette or light/dark choice, and it keeps your motion and accessibility settings.', 3),
-      el('div', { class: 'setting' }, [el('div', { class: 'setting-label' }, ['Palette']), paletteGroup]),
-      el('div', { class: 'setting' }, [
-        el('div', { class: 'setting-label' }, ['Accent colour']),
-        el('div', { class: 'accent-row' }, accentBtns.map((a) => a.b)),
-        accentNote,
-        disclosure('Custom accent', [
-          el('div', { class: 'accent-row' }, [picker, hexInput]),
-          el('button', { class: 'btn-text', type: 'button', onclick: () => updatePreferences({ customAccent: undefined }) }, ['Reset accent to palette default']),
+      el('div', { class: 'ap-stage-wrap' }, [themeStage()]),
+      block('Mode and palette', [
+        choice('Appearance', 'mode', [
+          { value: 'system', label: 'System' },
+          { value: 'dark', label: 'Dark' },
+          { value: 'light', label: 'Light' },
+        ], 'System follows your device until you pick Light or Dark.'),
+        el('div', { class: 'setting' }, [el('div', { class: 'setting-label' }, ['Palette']), paletteGroup]),
+      ]),
+      block('Surface treatment', [
+        tiles('Design style', 'designStyle', STYLE_OPTIONS, 'The surface treatment for cards and panels. It does not change your palette or light/dark choice, and it keeps your motion and accessibility settings.', 3),
+      ]),
+      block('Accent', [
+        el('div', { class: 'setting' }, [
+          el('div', { class: 'setting-label' }, ['Accent colour']),
+          el('div', { class: 'accent-row' }, accentBtns.map((a) => a.b)),
+          accentNote,
+          disclosure('Custom accent', [
+            el('div', { class: 'accent-row' }, [picker, hexInput]),
+            el('button', { class: 'btn-text', type: 'button', onclick: () => updatePreferences({ customAccent: undefined }) }, ['Reset accent to palette default']),
+          ]),
         ]),
       ]),
-      el('div', { class: 'setting' }, [
-        el('div', { class: 'setting-label' }, ['Choose a vibe']),
-        el('div', { class: 'vibe-row' }, VIBES.map((v) => el('button', { class: 'chip chip-btn', type: 'button', title: v.blurb, onclick: () => applyVibe(v.id) }, [v.label]))),
-        el('p', { class: 'setting-hint' }, ['A shortcut that sets ordinary palette, font and motion options — nothing hidden.']),
-      ]),
-      el('div', { class: 'ap-inline-actions' }, [
-        (() => {
-          const b = el('button', {
-            class: 'btn btn-ghost toolbar-btn',
-            type: 'button',
-            onclick: () => {
-              randomizePalette();
-              showToast('Tried a random look', { action: { label: 'Undo', run: undo } });
-            },
-          });
-          b.innerHTML = `<span class="icon-inline" style="width:15px;height:15px">${ICON.dice}</span> Surprise me`;
-          return b;
-        })(),
-        sectionResetButton('Reset theme', () => resetSection('themes')),
+      block('Shortcuts', [
+        el('div', { class: 'setting' }, [
+          el('div', { class: 'setting-label' }, ['Choose a vibe']),
+          el('div', { class: 'vibe-row' }, VIBES.map((v) => el('button', { class: 'chip chip-btn', type: 'button', title: v.blurb, onclick: () => applyVibe(v.id) }, [v.label]))),
+          el('p', { class: 'setting-hint' }, ['A shortcut that sets ordinary palette, font and motion options \u2014 nothing hidden.']),
+        ]),
+        el('div', { class: 'ap-inline-actions' }, [
+          (() => {
+            const b = el('button', {
+              class: 'btn btn-ghost toolbar-btn',
+              type: 'button',
+              onclick: () => {
+                randomizePalette();
+                showToast('Tried a random look', { action: { label: 'Undo', run: undo } });
+              },
+            });
+            b.innerHTML = `<span class="icon-inline" style="width:15px;height:15px">${ICON.dice}</span> Surprise me`;
+            return b;
+          })(),
+          sectionResetButton('Reset theme', () => resetSection('themes')),
+        ]),
       ]),
       disclosure('Saved looks', [looksBlock()]),
     ]);
@@ -600,9 +639,19 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
     const fontGroup = el('div', { class: 'font-grid', role: 'radiogroup', 'aria-label': 'Font pairing' }, presets.map((p) => p.btn));
     wireRadioKeys(fontGroup, presets);
 
+    // A live specimen: it uses the same font, scale, line-spacing, contrast and
+    // content-width tokens as the app, so every control below shows its effect.
+    const specimen = el('div', { class: 'ap-specimen', 'aria-hidden': 'true' }, [
+      el('span', { class: 'sp-kicker' }, ['Type specimen']),
+      el('span', { class: 'sp-title' }, ['The Midnight Reel']),
+      el('span', { class: 'sp-meta' }, ['2019 \u00b7 Movie \u00b7 Thriller \u00b7 \u2605 7.8']),
+      el('span', { class: 'sp-body' }, ['A projectionist finds a reel nobody ordered, and the whole town starts remembering a film it never saw.']),
+      el('span', { class: 'sp-row' }, [el('span', { class: 'sp-control' }, ['Add to watchlist']), el('span', { class: 'sp-note' }, ['Supporting text sits here'])]),
+    ]);
+
     return el('div', { class: 'ap-section' }, [
-      el('div', { class: 'ap-block' }, [
-        el('h4', { class: 'ap-block-title' }, ['Text']),
+      el('div', { class: 'ap-stage-wrap' }, [specimen]),
+      block('Text', [
         el('div', { class: 'setting' }, [
           el('div', { class: 'setting-label' }, ['Font pairing']),
           fontGroup,
@@ -619,9 +668,8 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
           { value: 'comfortable', label: 'Comfortable' },
           { value: 'relaxed', label: 'Relaxed' },
         ]),
-      ]),
-      el('div', { class: 'ap-block' }, [
-        el('h4', { class: 'ap-block-title' }, ['Contrast and surfaces']),
+      ], 'The specimen above also follows Content width, which lives in Cards & layout.'),
+      block('Contrast and surfaces', [
         choice('Contrast', 'contrast', [
           { value: 'standard', label: 'Standard' },
           { value: 'high', label: 'High' },
@@ -630,9 +678,8 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
           { value: 'standard', label: 'Standard' },
           { value: 'reduced', label: 'Reduced' },
         ], 'Reduced uses solid surfaces and removes background blur everywhere, including the Glass design style.'),
-      ]),
-      el('div', { class: 'ap-block' }, [
-        el('h4', { class: 'ap-block-title' }, ['Quick comfort']),
+      ], 'Contrast, transparency and text size are functional accessibility controls \u2014 no style or preset lowers them.'),
+      block('Quick comfort', [
         el('div', { class: 'setting' }, [
           el('p', { class: 'setting-hint' }, ['The comfort preset changes only these settings:']),
           el('ul', { class: 'ap-list' }, [el('li', {}, ['Text size 110%']), el('li', {}, ['High contrast']), el('li', {}, ['Reduced transparency']), el('li', {}, ['Subtle motion']), el('li', {}, ['Comfortable density'])]),
@@ -670,10 +717,8 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
       note.style.display = note.textContent ? '' : 'none';
     });
     return el('div', { class: 'ap-section' }, [
-      tiles('Motion profile', 'motion', MOTION_TILES, undefined, 2),
-      note,
-      el('div', { class: 'ap-block' }, [
-        el('h4', { class: 'ap-block-title' }, ['Card interactions']),
+      block('Overall movement', [tiles('Motion profile', 'motion', MOTION_TILES, undefined, 1, true), note], 'The broadest choice. It outranks every effect below \u2014 Off always wins, and so does a device request for reduced motion.'),
+      block('Card interactions', [
         choice('Hover glow', 'hoverGlow', [
           { value: 'off', label: 'Off' },
           { value: 'subtle', label: 'Subtle' },
@@ -684,8 +729,7 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
           { value: 'gentle', label: 'Gentle' },
         ], 'Mouse only; always off on touch and with reduced motion.'),
       ]),
-      el('div', { class: 'ap-block' }, [
-        el('h4', { class: 'ap-block-title' }, ['Atmosphere']),
+      block('Atmosphere \u2014 optional, decorative', [
         choice('Hero particles', 'particles', [
           { value: 'off', label: 'Off' },
           { value: 'subtle', label: 'Subtle' },
@@ -698,14 +742,13 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
           { value: 'balanced', label: 'Balanced' },
         ], 'A soft halo around your top pick, tinted from its poster. Decoration only \u2014 it never changes text or button colours. Reduced automatically on touch and low-power devices.'),
       ]),
-      el('div', { class: 'ap-block' }, [
-        el('h4', { class: 'ap-block-title' }, ['Transitions']),
+      block('Transitions', [
         choice('Transition intensity', 'transitionIntensity', [
           { value: 'minimal', label: 'Minimal' },
           { value: 'standard', label: 'Standard' },
           { value: 'cinematic', label: 'Cinematic' },
         ], 'Cinematic lengthens the hero entry and the top-pick reveal; it never adds waiting before you can act.'),
-      ]),
+      ], 'Keyboard focus and selected states are always visible \u2014 no setting here can remove them.'),
       disclosure('Advanced effects', [
         choice('Particle density', 'particleDensity', [
           { value: 'low', label: 'Low' },
@@ -790,15 +833,17 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
     const diagnostics = buildDiagnosticCard();
     aiModeUnsubscribers.push(diagnostics.destroy);
 
-    return el('div', { class: 'ap-section' }, [
+    // Signal Lab: a deliberately different, technical register (see .ap-lab).
+    // Order follows how a person reads a test: pick the mode, run the test,
+    // read what was measured, then the privacy statement.
+    return el('div', { class: 'ap-section ap-lab' }, [
       el('div', { class: 'setting' }, [
-        el('div', { class: 'setting-label' }, ['AI engine']),
+        el('div', { class: 'setting-label' }, ['Engine mode']),
         el('p', { class: 'setting-hint' }, [
           'Optional on-device AI only rewords the reasons behind each pick into one sentence \u2014 it never chooses or reorders titles. If it is off, slow or unavailable, you keep the original reasons.',
         ]),
         group,
-        detail,
-        saved,
+        el('div', { class: 'ap-readout' }, [detail, saved]),
       ]),
       diagnostics.node,
       disclosure('Model details', [
@@ -880,7 +925,10 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
       ]),
       el('div', { class: 'setting ap-danger-zone' }, [
         el('div', { class: 'setting-label' }, ['Reset']),
-        el('p', { class: 'setting-hint' }, ['Resets every appearance option on this page \u2014 theme, design style, cards, search, readability and motion \u2014 to its default. Your ratings, watchlist, profile, quiz answers and AI engine choice are not touched, and you can undo it.']),
+        el('ul', { class: 'ap-scope' }, [
+          el('li', {}, [el('strong', {}, ['Resets: ']), 'theme, design style, cards, search, readability and motion \u2014 every appearance option \u2014 back to its default. You can undo it.']),
+          el('li', {}, [el('strong', {}, ['Never touches: ']), 'your ratings, watchlist, profile, quiz answers, taste memory or AI engine choice.']),
+        ]),
         (() => {
           const b = el('button', {
             class: 'btn-text-danger',
@@ -930,11 +978,19 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
     const b = el(
       'button',
       { class: 'ap-tab', type: 'button', role: 'tab', id: `ap-tab-${t.id}`, 'aria-controls': 'ap-body', onclick: () => showSection(t.id) },
-      [t.label]
+      // The index number is decoration (aria-hidden), so the tab's accessible
+      // name stays its plain label.
+      [el('span', { class: 'ap-tab-num', 'aria-hidden': 'true' }, [t.num]), el('span', { class: 'ap-tab-label' }, [t.label])]
     );
-    return { b, id: t.id };
+    return { b, id: t.id, group: t.group };
   });
-  const tablist = el('div', { class: 'ap-tabs', role: 'tablist', 'aria-label': 'Settings sections' }, tabButtons.map((t) => t.b));
+  // Rail captions are aria-hidden, non-interactive markers between tabs.
+  const railChildren: HTMLElement[] = [];
+  for (const t of tabButtons) {
+    if (t.group) railChildren.push(el('span', { class: 'ap-tab-group', 'aria-hidden': 'true' }, [t.group]));
+    railChildren.push(t.b);
+  }
+  const tablist = el('div', { class: 'ap-tabs', role: 'tablist', 'aria-label': 'Settings sections' }, railChildren);
   tablist.addEventListener('keydown', (e) => {
     const keys = ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End'];
     if (!keys.includes(e.key)) return;
@@ -954,12 +1010,11 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
     currentSection = id;
     let node = built.get(id);
     if (!node) {
-      node = panes[id]();
+      // Built once per section: an editorial head above the pane's controls.
+      node = el('div', { class: 'ap-pane', 'data-pane': id }, [paneHead(id), panes[id]()]);
       built.set(id, node);
     }
-    const title = SECTIONS.find((s) => s.id === id)!.label;
-    const heading = id === 'overview' ? null : paneTitle(title);
-    body.replaceChildren(...(heading ? [heading] : []), node);
+    body.replaceChildren(node);
     body.setAttribute('aria-labelledby', `ap-tab-${id}`);
     body.scrollTop = 0;
     for (const t of tabButtons) {
@@ -1024,7 +1079,15 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
   const titleId = 'ap-title';
   const sub = el('p', { class: 'ap-sub' }, [`Currently ${effectiveMode()} \u00b7 changes apply instantly`]);
   const panel = el('aside', { class: 'appearance-panel', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId }, [
-    el('div', { class: 'ap-head' }, [el('div', {}, [el('h2', { id: titleId }, ['Settings']), sub]), closeBtn]),
+    el('div', { class: 'ap-head' }, [
+      el('div', { class: 'ap-head-text' }, [
+        el('p', { class: 'ap-eyebrow' }, ['Moodsift Studio']),
+        el('h2', { id: titleId }, ['Settings']),
+        el('p', { class: 'ap-tagline' }, ['Shape the way you discover films.']),
+        sub,
+      ]),
+      closeBtn,
+    ]),
     el('div', { class: 'ap-layout' }, [tablist, el('div', { class: 'ap-main' }, [studioRow, body])]),
     el('div', { class: 'ap-foot' }, [el('div', { class: 'ap-foot-row' }, [undoBtn, redoBtn, status])]),
   ]);
