@@ -144,7 +144,7 @@ export function buildTasteMemoryCard(): TasteMemoryCard {
     showToast('Taste memory erased from this browser.');
   }
 
-  const node = el('div', { class: 'ap-section', 'data-tm-card': '' }, [
+  const node = el('div', { class: 'ap-section ap-personal', 'data-tm-card': '' }, [
     el('div', { class: 'setting' }, [
       el('div', { class: 'setting-label' }, ['Local taste memory']),
       el('p', { class: 'setting-hint' }, [
@@ -166,7 +166,7 @@ export function buildTasteMemoryCard(): TasteMemoryCard {
       importMsg,
       preview,
     ]),
-    el('div', { class: 'setting' }, [
+    el('div', { class: 'setting ap-danger-zone' }, [
       el('div', { class: 'setting-label' }, ['Erase']),
       el('p', { class: 'setting-hint' }, ['Deletes everything above from this browser. It does not remove files you exported.']),
       el('button', { class: 'btn-text-danger', type: 'button', 'data-tm': 'erase', onclick: erase }, ['Erase saved taste memory']),
