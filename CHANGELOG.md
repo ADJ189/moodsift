@@ -2,6 +2,31 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased] — Settings studio redesign (Projection Booth)
+
+Presentation-only redesign of the Settings workspace, following `Moodsift-Settings-Projection-Booth-Redesign-Plan.md`. No preference, storage, AI, search, ranking or taste-memory logic changed; the nine section ids, legacy tab names, auto-save, undo/redo, compare/restore, looks, import/export and scoped resets are untouched.
+
+### Changed
+- **Studio shell** (`settings.css`, `settings-panel.ts`): charcoal surface (warm paper in light mode) with amber/copper detail colour built from the live tokens, so every palette and custom accent still works. A header with the studio identity and tagline, and a rail that reads as an index: grouped captions and index numbers (decorative, `aria-hidden` — tab names are unchanged). On phones the rail remains a labelled, scrollable tab row with an edge fade.
+- **Editorial pane heads**: each section opens with an index numeral, kicker, title and one-line lede.
+- **Fewer cards**: option groups are hairline contact sheets, controls are spec rows (label left, control right), groups use rules and small-caps headings instead of bordered boxes. On phones options become preview-left/text-right rows instead of small two-up tiles.
+- **Preview stages** for Cards & layout, Search, Theme and Overview. Each is built once, uses local fictional samples, makes no requests, and is driven by the existing `<html>` data attributes, so changing a setting never remounts controls or moves focus, and Compare with before is shown too. Palettes are now mini-scenes (background, poster, title line, accent button) rather than colour dots.
+- **Overview** is a studio home: the two stages, a spec-sheet of current card/style/search choices linking to their sections, and presets with thumbnails showing their own card type, style and search treatment.
+- **Readability** gains a live type specimen (font, size, line spacing, content-width measure, contrast).
+- **Motion & performance** is ordered from overall movement to optional decorative effects; the motion profile is a row list.
+- **AI engine** uses a separate Signal Lab register. The diagnostics card now reads as a test run: question, controls, status, measured facts, what happened, next step. The long privacy/behaviour paragraph moved behind "What this test checks" (text unchanged). Selection is a neutral marker, never a green "ready" light.
+- **Taste memory** is visually separated as personal data; **Advanced** states exactly what Reset covers and never touches.
+- Selected states use a heavier frame plus a marker, not colour alone; focus rings are drawn inside clipped groups.
+
+### Added
+- `tests/settings-studio.spec.ts`.
+
+### Not in this change
+Motion micro-previews (no autoplay demos were added), new fonts (only the bundled ones are used), and committed screenshot baselines.
+
+### Verification
+Run: `npm run typecheck`, `npm run lint`, `npm run build` (all clean). **Not run:** the Playwright suites including the new spec and the axe scans (no browser could be downloaded here), and no visual check in a real browser. Contrast across all palettes/modes is unverified — run `npm test` and review the drawer in each palette before release.
+
 ## [Housekeeping — docs and package.json]
 
 ### Fixed
