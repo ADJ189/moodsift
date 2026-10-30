@@ -71,7 +71,9 @@ const item = (id: number, tmdbType: 'movie' | 'tv' = 'movie') => ({ id, title: `
 let storage: FakeStorage;
 async function fresh(setup: (s: FakeStorage) => void = () => undefined) {
   storage = new FakeStorage();
-  (globalThis as unknown as { localStorage: FakeStorage }).localStorage = storage;
+  // defineProperty rather than assignment: some runners (e.g. Deno) expose a
+  // read-only global localStorage accessor, where assignment silently fails.
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, writable: true, value: storage });
   setup(storage);
   const mod = await import('../src/lib/profile');
   mod.__resetInMemoryStateForTests();
