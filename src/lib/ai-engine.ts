@@ -105,6 +105,11 @@ export interface EngineDeps {
   baseFetch: FetchFn;
   cacheStorage: CacheStorageLike | undefined;
   manifest: ManifestFileShape;
+  /** Same-origin base for Transformers.js model files, e.g.
+   * `https://moodsift.example/models/`. Every config/tokenizer/weight request
+   * is built from this host and `remotePathTemplate`, and integrity tracking
+   * must parse the same base path. */
+  modelHost: string;
   now(): number;
   isOffline(): boolean;
   /** Per-request cap for the smoke generation. */
@@ -306,6 +311,12 @@ export function createEngine(deps: EngineDeps) {
       const { pipeline, env } = runtime;
       env.allowLocalModels = false;
       env.useBrowserCache = true;
+      // Route every model artifact through the same-origin /models/ proxy.
+      // The path template keeps Hugging Face's repo/revision/file layout, which
+      // worker/model-proxy.ts validates. Both settings are supported
+      // Transformers.js environment options (not a Moodsift-specific fork).
+      env.remoteHost = deps.modelHost;
+      env.remotePathTemplate = '{model}/resolve/{revision}/';
       if (env.backends?.onnx?.wasm) {
         // Multi-threaded WASM needs a SharedArrayBuffer, which the browser only
         // grants on a cross-origin-isolated page (COOP/COEP — see
@@ -334,6 +345,9 @@ export function createEngine(deps: EngineDeps) {
           revision: candidate.revision,
           entry: manifestFor(candidate, deps.manifest),
           baseFetch: deps.baseFetch,
+          // The tracker must recognise the same /models/ base path that
+          // Transformers.js uses, or it cannot map requests to manifest files.
+          remoteHost: deps.modelHost,
           store,
           discardCached: async (url) => {
             await (await openModelCache())?.delete(url);

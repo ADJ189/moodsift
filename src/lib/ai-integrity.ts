@@ -97,6 +97,10 @@ export interface ParsedModelUrl {
 
 /** Splits a model resolve URL into decoded repo, revision and path, or returns
  * null for an invalid URL, another origin or an unrecognized path.
+ *
+ * `remoteHost` may include a base path, e.g. `https://moodsift.example/models/`.
+ * That is the same-origin proxy route used by ai-engine.ts; without stripping
+ * the base path the tracker would not recognise the requests it must verify.
  * Throws TypeError for an invalid remoteHost and URIError for malformed escapes. */
 export function parseModelUrl(raw: string, remoteHost = 'https://huggingface.co/'): ParsedModelUrl | null {
   let u: URL;
@@ -107,7 +111,11 @@ export function parseModelUrl(raw: string, remoteHost = 'https://huggingface.co/
   }
   const host = new URL(remoteHost);
   if (u.origin !== host.origin) return null;
-  const m = /^\/([^/]+\/[^/]+)\/resolve\/([^/]+)\/(.+)$/.exec(u.pathname);
+
+  const base = host.pathname.endsWith('/') ? host.pathname : `${host.pathname}/`;
+  if (!u.pathname.startsWith(base)) return null;
+  const rest = u.pathname.slice(base.length);
+  const m = /^([^/]+\/[^/]+)\/resolve\/([^/]+)\/(.+)$/.exec(rest);
   if (!m) return null;
   return { repo: decodeURIComponent(m[1]!), revision: decodeURIComponent(m[2]!), path: decodeURIComponent(m[3]!) };
 }
