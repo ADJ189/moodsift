@@ -25,9 +25,10 @@ deliberate).
   more than one screen (see `providers-ui.ts`, `credits-ui.ts`,
   `rating-ui.ts`), it belongs in its own `src/lib/*-ui.ts` module, not
   duplicated in each screen.
-- **Nothing leaves the browser except TMDB/OMDb API calls.** No new
-  analytics, telemetry, or third-party call that isn't one of the
-  documented Connectors in the README. If your change needs one, say so
+- **Nothing leaves the browser except TMDB/OMDb API calls** (plus the
+  opt-in on-device AI's runtime and model downloads, documented in
+  PRIVACY.md). No new analytics, telemetry, or third-party call that
+  isn't one of the documented Connectors in the README. If your change needs one, say so
   explicitly in the PR description — see PRIVACY.md.
 
 ## Local setup
@@ -42,14 +43,22 @@ npm run dev
 ## Before opening a PR
 
 ```bash
-npm run typecheck   # must be clean — strict mode, no exceptions, covers src/ and worker/
-npm run build        # must succeed
+npm run typecheck   # must be clean — strict mode, covers src/, worker/, tests/ and configs
+npm run lint        # oxlint — must be clean
+npm run build       # must succeed (runs typecheck first)
+npm test            # Playwright + axe, desktop and mobile Chromium (TMDB is mocked)
 ```
 
-There's no automated test suite yet — manual verification against the
-dev server is expected. Call out in the PR description what you tested
-(which screens, light/dark, roughly what devices/browsers if the change
-touches the on-device AI or WebGPU/WASM paths).
+Run `npm run test:install` once to download Chromium for Playwright. CI
+runs `npm audit`, typecheck, lint, build, the tests and Lighthouse on
+every PR. New UI or behaviour should come with a test (and an axe scan
+for new Settings sections, card types, design styles or search types).
+Visual snapshots are opt-in (`npm run test:visual`) and not committed.
+
+Tests don't cover real model downloads or real-device inference. If your
+change touches the on-device AI or WebGPU/WASM paths, say in the PR
+description what you tested by hand (which models/backends, which
+devices and browsers) and what you couldn't.
 
 ## Commit / PR style
 
@@ -69,8 +78,9 @@ touches the on-device AI or WebGPU/WASM paths).
   — see `region.ts` — so "doesn't match what I see locally" reports are
   useful even when they turn out to be JustWatch data gaps rather than
   app bugs).
-- Accessibility fixes — keyboard navigation and screen-reader labeling
-  haven't had a dedicated audit pass.
+- Accessibility fixes — axe scans run in CI, but automated checks don't
+  replace real keyboard and screen-reader testing, so manual findings
+  are very welcome.
 - Performance regressions caught by bundle-size or load-time changes.
 
 ## What's out of scope (for now)
@@ -80,6 +90,12 @@ touches the on-device AI or WebGPU/WASM paths).
   its file header for the reasoning. Proposals to add server accounts
   should start as an issue, not a PR.
 - New UI frameworks or state-management libraries.
+
+## AI coding agents
+
+If you use an AI coding tool, point it at [AGENTS.md](./AGENTS.md). It
+summarises the constraints above, the commands, and the repo's
+conventions. You are still responsible for what you submit.
 
 ## Code of conduct
 

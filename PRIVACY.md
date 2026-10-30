@@ -21,16 +21,25 @@ visit — not a server account, just a private identity scoped to that one
 browser:
 
 - A randomly generated display name and avatar (you can change either)
-- Your rating history (which titles you rated, and how)
+- Your rating history (which titles you rated, and how), including ratings you import from a Letterboxd or IMDb CSV
 - Your watchlist
 - Your streaming-region preference, if you've picked one (`region.ts`)
-- Your theme preference (light/dark, `theme.ts`)
+- Your appearance preferences and saved looks (`appearance.ts`, `theme.ts`)
+- Your on-device AI mode (`ai-settings.ts`)
+
+The profile is saved in a compressed format (`cinematch.profile.v2`,
+via `profile-codec.ts`). That is storage optimisation, **not encryption**:
+anyone with access to this browser profile can read it. Older plain-JSON
+data (`cinematch.profile.v1`) is removed only after the new copy has been
+written and read back identically, and unreadable data is set aside
+rather than deleted.
 
 None of this is sent anywhere. It's readable and deletable like any
 other localStorage data for this site — clearing your browser's site
 data for this domain removes it, or use **Reset my data** in the profile
 popover (header → profile icon) for a one-click reset from inside the
-app.
+app. **Settings → Taste memory** also lets you pause personalization,
+export or import a backup file, and erase your saved taste memory.
 
 If your browser blocks localStorage (private/incognito mode, storage
 disabled), the app still works — ratings and the watchlist just won't
@@ -60,11 +69,18 @@ rather than pretending otherwise.
   address) for those downloads. No title data, rating, quiz answer or
   prompt is ever sent anywhere for this — "on-device" is literal, and
   no cloud AI is used as a fallback. In **Lightweight / data saver**
-  mode (Appearance → AI engine) nothing is downloaded. The chosen mode
-  is stored in your browser under `cinematch-local-ai:v1`.
+  mode (Settings → AI engine) nothing is downloaded. The chosen mode
+  is stored in your browser under `cinematch-local-ai:v1`. Downloaded
+  model files are verified against pinned sizes and checksums where the
+  project's manifest has them. **Test on this device** (same tab) checks
+  that those hosts are reachable (including `fastly.jsdelivr.net` and
+  `unpkg.com` as fallbacks for the WASM runtime files); its copyable
+  report contains device signals and error classifications only — no
+  titles, ratings, quiz answers or profile data.
 - **The optional `/api/recommend` Worker route** (`worker/index.ts`) —
-  only reachable if the deployment has Cloudflare Workers AI enabled,
-  and nothing in the current app actually calls it yet. If it is used,
+  off by default (the Workers AI binding is disabled in
+  `wrangler.jsonc`, and the route fails closed without it), and nothing
+  in the current app actually calls it. If it is used,
   it receives a pre-filtered candidate list (title id/name/year/genre)
   and a short preferences summary — never your raw ratings, profile, or
   any personally identifying data — and returns a re-ranking. Cloudflare
@@ -81,9 +97,12 @@ rather than pretending otherwise.
   if any, are outside this project's control).
 - No advertising, no ad-tech scripts, no third-party trackers.
 - No account system, no email collection, no login.
-- The Letterboxd CSV importer (`letterboxd.ts`) only reads a file you
-  choose from your own device and never uploads it anywhere — parsing
-  happens entirely client-side.
+- The Letterboxd and IMDb CSV importers (`letterboxd.ts`, `imdb.ts`) and
+  the taste-memory backup import only read a file you choose from your
+  own device and never upload it anywhere — parsing happens entirely
+  client-side. (Matching imported IMDb titles to TMDB sends the same
+  per-title lookups to TMDB as any other search; the file itself is not
+  sent.)
 
 ## Third-party services
 

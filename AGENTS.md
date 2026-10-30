@@ -137,11 +137,11 @@ Full policy: `docs/Moodsift-Local-AI-Engine-Policy.md`. Key invariants:
 
 ## Known issues / watch-outs (verify before relying on these)
 
-- **`package.json` has duplicate keys** in `devDependencies` (`@types/node` and `oxlint` each appear twice with different versions). Clean this up (keep one of each) and regenerate `package-lock.json`.
 - **`src/data/ai-manifest.json` has empty `files` arrays** (`generatedAt: null`), so every model currently reports *Not yet verified*. `npm run ai:manifest` must be run in a network-enabled environment, the diff reviewed, and the result committed; then `ai:manifest:check` becomes a meaningful release gate.
-- **`CONTRIBUTING.md` says "no automated test suite yet"** — that is stale; a Playwright suite exists.
+- **`@types/node` is 26.x but CI runs Node 22.** Consider pinning the types to match the runtime in a separate change (needs a lockfile update).
 - Full CSP is still Report-Only (see above).
 - The Playwright suites and real model downloads/inference have not been verified in every environment this was developed in; confirm in CI.
+- Keep docs in sync: when behaviour changes, update `README.md` (Architecture section included), `PRIVACY.md`, `SECURITY.md` and `CHANGELOG.md` in the same change.
 
 ## Working in this repo without a local clone
 

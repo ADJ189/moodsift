@@ -136,17 +136,23 @@ export function buildDiagnosticCard(): DiagnosticCard {
     }
   }
 
+  // Reads top to bottom as a test run: the question, the controls, what was
+  // measured, what happened, and what to do next. (Visual order only — every
+  // element, label and live region is the same as before.)
   const node = el('div', { class: 'setting ai-diag', 'data-ai-diag-card': '' }, [
     el('div', { class: 'setting-label' }, ['Test on this device']),
-    el('p', { class: 'setting-hint' }, [
-      'Local AI runs in this browser on your device. The first run may download model files from the configured model/CDN hosts and can take longer. \u201cTest on this device\u201d checks runtime access, model integrity, startup, and a short real inference. If a model is unsuitable, Moodsift can try a smaller eligible local model. If local AI is unavailable, the original rule-based reasons remain. Moodsift does not silently send quiz answers or search data to a cloud AI service.',
+    el('details', { class: 'ap-advanced ai-diag-about' }, [
+      el('summary', {}, ['What this test checks']),
+      el('p', { class: 'setting-hint' }, [
+        'Local AI runs in this browser on your device. The first run may download model files from the configured model/CDN hosts and can take longer. \u201cTest on this device\u201d checks runtime access, model integrity, startup, and a short real inference. If a model is unsuitable, Moodsift can try a smaller eligible local model. If local AI is unavailable, the original rule-based reasons remain. Moodsift does not silently send quiz answers or search data to a cloud AI service.',
+      ]),
     ]),
     qualityRow,
     actions,
     status,
     stage,
-    problem,
     facts,
+    problem,
     advice,
     recActions,
   ]);

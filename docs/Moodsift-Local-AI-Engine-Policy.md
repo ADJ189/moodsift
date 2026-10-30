@@ -1,6 +1,6 @@
 # Moodsift Local AI Engine Policy
 
-**Applies to:** Moodsift UI 1.10.2 local-AI optimizer patch  
+**Applies to:** Moodsift v1.13.5 (originally written for the UI 1.10.2 local-AI optimizer patch; the v1.13.5 sections below extend it)  
 **Cloudflare Workers AI:** intentionally deferred; the existing `/api/recommend` endpoint remains unchanged and is not called by the frontend.
 
 ## Product decision
