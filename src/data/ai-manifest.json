@@ -1,22 +1,199 @@
 {
   "schema": 1,
-  "generatedAt": null,
-  "note": "Run `npm run ai:manifest` in a network-enabled environment to fill in real SHA-256 values from the pinned upstream revisions, review the diff, and commit it. Until then every model reports \"Not yet verified\".",
+  "generatedAt": "2026-10-30T15:20:45.820Z",
+  "note": "Generated from the pinned upstream revisions by `npm run ai:manifest`. Verify with `npm run ai:manifest:check`; review the diff before committing. Missing, extra or mismatch files are reported as Not yet verified / Verification failed, never assumed valid.",
   "models": {
     "qwen2.5-0.5b": {
       "repo": "onnx-community/Qwen2.5-0.5B-Instruct",
       "revision": "516c8d04add8a80c5228f32102b57953b8d421a9",
-      "dtypes": { "q4f16": { "files": [] }, "q8": { "files": [] } }
+      "dtypes": {
+        "q4f16": {
+          "files": [
+            {
+              "path": "config.json",
+              "size": 678,
+              "sha256": "777e01f0fbb3346eb229cb6fb278ed6533c1e4dcb9ebf4bed0f6e94ef17fa1b5"
+            },
+            {
+              "path": "generation_config.json",
+              "size": 242,
+              "sha256": "f7e7ce458658b2d40d9eb213b91b77a8bf698845ab89360976722d7ac46928a3"
+            },
+            {
+              "path": "tokenizer.json",
+              "size": 7031673,
+              "sha256": "a8506e7111b80c6d8635951a02eab0f4e1a8e4e5772da83846579e97b16f61bf"
+            },
+            {
+              "path": "tokenizer_config.json",
+              "size": 7306,
+              "sha256": "7e88129d9769a0b14b1587a7d5e829fe93ac0e1511636471fdfc0811951418e6"
+            },
+            {
+              "path": "onnx/model_q4f16.onnx",
+              "size": 483003582,
+              "sha256": "b11c1dd99efd57e6c6e5bc4443a019931a5fbd5dd500d48644d8225f5ce0b2cb"
+            }
+          ]
+        },
+        "q8": {
+          "files": [
+            {
+              "path": "config.json",
+              "size": 678,
+              "sha256": "777e01f0fbb3346eb229cb6fb278ed6533c1e4dcb9ebf4bed0f6e94ef17fa1b5"
+            },
+            {
+              "path": "generation_config.json",
+              "size": 242,
+              "sha256": "f7e7ce458658b2d40d9eb213b91b77a8bf698845ab89360976722d7ac46928a3"
+            },
+            {
+              "path": "tokenizer.json",
+              "size": 7031673,
+              "sha256": "a8506e7111b80c6d8635951a02eab0f4e1a8e4e5772da83846579e97b16f61bf"
+            },
+            {
+              "path": "tokenizer_config.json",
+              "size": 7306,
+              "sha256": "7e88129d9769a0b14b1587a7d5e829fe93ac0e1511636471fdfc0811951418e6"
+            },
+            {
+              "path": "onnx/model_quantized.onnx",
+              "size": 512096557,
+              "sha256": "41834041ab1b29eff9fc592f1a29a1844133aea35832ea9fa91682be13016100"
+            }
+          ]
+        }
+      }
     },
     "smollm2-360m": {
       "repo": "onnx-community/SmolLM2-360M-Instruct-ONNX",
       "revision": "fe7c7db4c8921c9e3fa1c65cfd296fb3b1b1a8f9",
-      "dtypes": { "q4f16": { "files": [] }, "q8": { "files": [] } }
+      "dtypes": {
+        "q4f16": {
+          "files": [
+            {
+              "path": "config.json",
+              "size": 961,
+              "sha256": "74c6493e7352434a031c0e2bd55a015ef90ac25d549ca1dcc7972a6731459456"
+            },
+            {
+              "path": "generation_config.json",
+              "size": 132,
+              "sha256": "3a6555a034b32bf2fc6d35cc16207dc95c8af520b2d45febe48a1ad6cb46ff63"
+            },
+            {
+              "path": "tokenizer.json",
+              "size": 3522656,
+              "sha256": "7d27c493c729a66ecefc837280b05d948b1ed50d130eebdbf911b1b36cf38ed7"
+            },
+            {
+              "path": "tokenizer_config.json",
+              "size": 3794,
+              "sha256": "7b85619980209ca801effcd87e5df7084a21abc3d8b8d27003a6b4ffcce170ef"
+            },
+            {
+              "path": "onnx/model_q4f16.onnx",
+              "size": 272353302,
+              "sha256": "ce4a145ce32435411a296289d93b2c33334e6876ffba05373c9aa829c28e2026"
+            }
+          ]
+        },
+        "q8": {
+          "files": [
+            {
+              "path": "config.json",
+              "size": 961,
+              "sha256": "74c6493e7352434a031c0e2bd55a015ef90ac25d549ca1dcc7972a6731459456"
+            },
+            {
+              "path": "generation_config.json",
+              "size": 132,
+              "sha256": "3a6555a034b32bf2fc6d35cc16207dc95c8af520b2d45febe48a1ad6cb46ff63"
+            },
+            {
+              "path": "tokenizer.json",
+              "size": 3522656,
+              "sha256": "7d27c493c729a66ecefc837280b05d948b1ed50d130eebdbf911b1b36cf38ed7"
+            },
+            {
+              "path": "tokenizer_config.json",
+              "size": 3794,
+              "sha256": "7b85619980209ca801effcd87e5df7084a21abc3d8b8d27003a6b4ffcce170ef"
+            },
+            {
+              "path": "onnx/model_quantized.onnx",
+              "size": 363115149,
+              "sha256": "5ee6c8dc6791050d8779687a16c8167643a234e00ea41e06a92e05f88003dbb3"
+            }
+          ]
+        }
+      }
     },
     "smollm2-135m": {
       "repo": "onnx-community/SmolLM2-135M-Instruct-ONNX",
       "revision": "b8a5c0f183b78c55955a5364f610c36668b5e681",
-      "dtypes": { "q4f16": { "files": [] }, "q8": { "files": [] } }
+      "dtypes": {
+        "q4f16": {
+          "files": [
+            {
+              "path": "config.json",
+              "size": 976,
+              "sha256": "88f5d2bbac13e61d28787184fa1aa13b7f81f7bda7c3869ece8a8930c27cc5ed"
+            },
+            {
+              "path": "generation_config.json",
+              "size": 132,
+              "sha256": "3a6555a034b32bf2fc6d35cc16207dc95c8af520b2d45febe48a1ad6cb46ff63"
+            },
+            {
+              "path": "tokenizer.json",
+              "size": 3522656,
+              "sha256": "7d27c493c729a66ecefc837280b05d948b1ed50d130eebdbf911b1b36cf38ed7"
+            },
+            {
+              "path": "tokenizer_config.json",
+              "size": 3794,
+              "sha256": "7b85619980209ca801effcd87e5df7084a21abc3d8b8d27003a6b4ffcce170ef"
+            },
+            {
+              "path": "onnx/model_q4f16.onnx",
+              "size": 117266133,
+              "sha256": "662d0a9d8d5d56e3746a5bf3b3ede96bd2d4d3594d9b2e282baebd4f34cf3589"
+            }
+          ]
+        },
+        "q8": {
+          "files": [
+            {
+              "path": "config.json",
+              "size": 976,
+              "sha256": "88f5d2bbac13e61d28787184fa1aa13b7f81f7bda7c3869ece8a8930c27cc5ed"
+            },
+            {
+              "path": "generation_config.json",
+              "size": 132,
+              "sha256": "3a6555a034b32bf2fc6d35cc16207dc95c8af520b2d45febe48a1ad6cb46ff63"
+            },
+            {
+              "path": "tokenizer.json",
+              "size": 3522656,
+              "sha256": "7d27c493c729a66ecefc837280b05d948b1ed50d130eebdbf911b1b36cf38ed7"
+            },
+            {
+              "path": "tokenizer_config.json",
+              "size": 3794,
+              "sha256": "7b85619980209ca801effcd87e5df7084a21abc3d8b8d27003a6b4ffcce170ef"
+            },
+            {
+              "path": "onnx/model_quantized.onnx",
+              "size": 135658354,
+              "sha256": "0fab87142e3eb1fcacb881f8282e7473e62ad66920c347b81f088da6fda2da37"
+            }
+          ]
+        }
+      }
     }
   }
 }
