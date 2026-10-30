@@ -9,7 +9,15 @@
   "compatibility_date": "2026-01-01",
   "assets": {
     "directory": "./dist",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
+    // The Worker must run before static-asset serving for every request:
+    //   - /models/* is the same-origin model-file relay implemented in
+    //     worker/index.ts + worker/model-proxy.ts; a future file in dist/models/
+    //     must not silently bypass the allow-list/redirect checks.
+    //   - HTML and other assets need the COOP/COEP and CSP headers that
+    //     worker/index.ts adds. Cloudflare otherwise serves a matching asset
+    //     directly without invoking the Worker, so those headers would be lost.
+    "run_worker_first": true
   },
   // OFF by default (v1.13.5). The frontend never calls POST /api/recommend —
   // ranking is client-side and on-device AI runs in the browser — so leaving

@@ -2,6 +2,34 @@
 
 All notable changes to this project are documented here.
 
+## [1.13.8] — Same-origin Hugging Face model relay
+
+Local AI no longer asks the browser to fetch model files from `huggingface.co` directly. Every model artifact now comes from the Moodsift origin under `/models/`, so model loads no longer depend on Hugging Face's CORS and redirect behaviour. The relay is allow-listed, pinned to full commit SHAs, and streams bytes; it is not an open proxy. Inference still happens entirely on the user's device.
+
+### Added
+- **Same-origin `/models/` relay** (`worker/model-proxy.ts`): accepts only the repositories pinned in `src/lib/ai-policy.ts`, only full 40-character commit SHAs, and only `GET`/`HEAD`. It rebuilds the upstream URL from trusted constants, follows Hugging Face's repository → CDN redirects manually (max 5), requires every hop to stay on an HTTPS `huggingface.co`/`.hf.co` host, and refuses protocol downgrades, credentials and non-443 ports. Decoded `..`/traversal and ambiguous paths are rejected before any upstream call. Response bodies are streamed, not buffered; `Range`, `206` and `416` are preserved, and only representation headers (`content-type`, `etag`, `content-range`, …) are copied. Successful pinned responses are immutable for a year; errors and ranges are `no-store`.
+- **Vite dev/preview wiring** (`worker/dev-proxy.ts`): the same handler runs in `npm run dev` and `vite preview`, so local behaviour matches the deployed Worker.
+- **Tests**: `deno-tests/model-proxy.test.ts` (23 deterministic tests), `deno-tests/ai-integration.test.ts` (4 tests covering URL parsing, integrity tracking and the generated manifest), and `tests/model-proxy.spec.ts` (Playwright, both viewports).
+
+### Changed
+- **Transformers.js now loads from `/models/`**: `src/lib/ai-engine.ts` sets `env.remoteHost` to `${origin}/models/` and `env.remotePathTemplate` to the pinned `resolve/<sha>/` path; `src/lib/ai-worker.ts` computes that origin from the Worker location. `src/lib/ai-integrity.ts` recognises the same-origin base path, so checksums are verified on the relayed bytes.
+- **Real manifest values**: `src/data/ai-manifest.json` now contains generated sizes and SHA-256 hashes for all 30 pinned files (previously empty placeholders). Regenerate with `npm run ai:manifest`; `npm run ai:manifest:check` remains the release gate.
+- **`run_worker_first: true`** in `wrangler.jsonc`: the Worker must run before static assets so `/models/` cannot be shadowed by a future `dist/models/` file and so COOP/COEP/CSP headers are applied to HTML and asset responses. Verified against a local `wrangler dev`.
+- **Wrangler pinned to `4.151.3`** in `package.json` and `package-lock.json`.
+- **Version bumped to `1.13.8`** in `package.json`, `package-lock.json`, `src/lib/app-version.ts` and `AGENTS.md`.
+- **Docs**: `README.md`, `SECURITY.md`, `PRIVACY.md`, `AGENTS.md` and `docs/Moodsift-Local-AI-Engine-Policy.md` describe the relay, its limits, the generated manifest and the privacy flow. The manifest note in `src/data/ai-manifest.json` now reflects real generated data.
+
+### Security
+- The relay cannot be turned into an open proxy: the upstream host is never taken from the request, redirect targets are validated on every hop, client credentials and query strings are not forwarded, and only approved repos/revisions are reachable.
+- Model files remain checksum-verified end to end; a mismatch still fails closed, discards the cached copy and falls through to the next eligible candidate.
+
+### Not in this release
+- No explicit Cloudflare edge-cache layer for `/models/`. Repeat downloads rely on immutable `Cache-Control`; add an R2/Cache API layer separately if download cost becomes a problem.
+- No changes to ranking, quiz, storage, settings, or the optional `/api/recommend` route.
+
+### Verification
+Run here with Deno 2.9.8: `tsc --noEmit` (TypeScript 7.0.2), `oxlint` 1.89.0 and `vite build` 8.3.5 all clean; the 27 Deno tests pass; the targeted Playwright suites pass (138/138 for proxy, AI engine, integrity and profile storage; 22/22 for appearance with a 300 s timeout — the default 60 s is too short for the 80-keystroke focus test under Deno). Live checks: Vite dev and preview returned real pinned `config.json` (200), `HEAD` (200) and `Range: bytes=0-15` (206), and rejected a mutable `main` revision (404); a local `wrangler dev` Worker returned the same results, rejected `POST` (405), and stamped COOP/COEP/CSP on the root document. **Not completed:** the full 429-test two-viewport Playwright suite — browser actions are extremely slow under Deno here (about 50 s per UI test), so it was stopped after 25 passing, 0 failing; the targeted suites above cover the changed surface. **Not run:** a full model download, real-device inference, production deployment, or a production-browser test. No production hashes or performance numbers are claimed beyond the generated manifest.
+
 ## [Unreleased] — Settings studio redesign (Projection Booth)
 
 Presentation-only redesign of the Settings workspace, following `Moodsift-Settings-Projection-Booth-Redesign-Plan.md`. No preference, storage, AI, search, ranking or taste-memory logic changed; the nine section ids, legacy tab names, auto-save, undo/redo, compare/restore, looks, import/export and scoped resets are untouched.
