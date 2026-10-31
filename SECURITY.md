@@ -35,9 +35,11 @@ the fix's changelog entry unless you'd prefer to stay anonymous.
   commit SHAs in `src/lib/ai-policy.ts`, only HTTPS Hugging Face / HF storage
   hosts on each redirect hop, only `GET` and `HEAD`, no client credentials,
   cookies or query strings forwarded, and path traversal/encoded separators
-  rejected. It streams responses and does not buffer files. Downloaded model
-  files are verified against the committed manifest's sizes and SHA-256
-  checksums; a mismatch fails closed. The optional `worker/index.ts`
+  rejected. It streams responses and does not buffer files. Eligible downloads
+  recorded in the committed manifest are checked against its sizes and SHA-256
+  checksums; a mismatch fails closed. Unmanifested files and cached files without
+  a verification record may be accepted without hashing, with a not-verified
+  result. The optional `worker/index.ts`
   `/api/recommend` route is off by default (no AI binding) and only ever
   forwards a pre-filtered candidate list, never raw user input, to Cloudflare
   Workers AI.

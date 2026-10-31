@@ -76,11 +76,11 @@ Seven quick questions, a few titles you already know, and a live pull from thous
 - No API key; titles, quiz answers, and prompts are not sent for AI processing. The Transformers.js runtime still comes from a public CDN; model files are fetched through the same Moodsift origin, as described below.
 - **Same-origin model relay.** Transformers.js is pointed at `/models/<repo>/resolve/<pinned-sha>/<file>` instead of Hugging Face. `worker/model-proxy.ts` accepts only the repositories and full commit SHAs in `ai-policy.ts`, follows Hugging Face's storage redirects server-side, relays `GET`/`HEAD` and byte ranges, and streams the body back. The Vite dev and preview servers use the same handler, so local testing matches production. This removes the browser's CORS/redirect dependency; it is not an open proxy. Transformers.js 4.3.1's discovery helpers omit `revision`, so `ai-integrity.ts` normalises every same-origin request for the candidate's exact repository to its pinned SHA before it is sent; the relay itself still rejects `main`, branches and tags.
 - Choose the priority under Settings → AI engine (Best quality / Balanced / Fastest / Lightweight data saver). It only rewords the rule-based reasons — ranking stays deterministic. Opt-in, never a dependency.
-- **Test on this device** (same tab) runs the same load path as normal use and produces a privacy-safe report you can copy. Downloaded model files are checked against pinned sizes and SHA-256 checksums in the committed manifest; a mismatch fails closed and falls through to the next candidate.
+- **Test on this device** (same tab) runs the same load path as normal use and produces a privacy-safe report you can copy. Eligible model downloads recorded in the committed manifest are checked against their pinned sizes and SHA-256 checksums; a mismatch fails closed and falls through to the next candidate. Unmanifested files and cached files without a verification record can be accepted as not verified.
 
 ### Privacy
 
-- **No tracking, no server account.** Nothing is sent anywhere except the TMDB/OMDb API calls needed to fetch and score titles, plus optional AI runtime/model downloads relayed through the app's own Worker. The local profile lives entirely in your browser's `localStorage`. Details in [PRIVACY.md](./PRIVACY.md).
+- **No tracking, no server account.** Network requests include TMDB/OMDb API calls and optional AI downloads. Runtime files are downloaded directly from public CDNs, whose hosts receive those requests; only model files are relayed through the app's own Worker. The local profile lives entirely in your browser's `localStorage`. Details in [PRIVACY.md](./PRIVACY.md).
 
 ## Screenshots
 

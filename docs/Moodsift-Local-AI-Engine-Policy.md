@@ -79,7 +79,7 @@ Successful pinned responses carry `Cache-Control: public, max-age=31536000, immu
 - only applies to the exact repository the tracker was created for;
 - preserves the file path, query and fragment, and never rewrites to `main`, a branch or a tag.
 
-Requests for another repository or origin are passed through unchanged, so the relay still rejects them. The relay's own rules are unchanged: `main`, branches, tags and shortened SHAs remain invalid. `deno-tests/transformers-revision.test.ts` runs the real vendored 4.3.1 bundle for SmolLM2-360M/WebGPU, SmolLM2-135M/WebGPU and SmolLM2-135M/WASM and fails if any request uses `resolve/main/`.
+Requests for another repository or origin are passed through unchanged, so the relay still rejects them. The relay's own rules are unchanged: `main`, branches, tags and shortened SHAs remain invalid. The real-runtime revision-pinning test and vendored bundle are absent from this checkout; `tests/model-proxy.spec.ts` checks that the relay rejects `main`.
 
 `run_worker_first: true` in `wrangler.jsonc` keeps the Worker ahead of static-asset serving: a future `dist/models/` file cannot shadow the relay, and the Worker's COOP/COEP/CSP headers are applied to HTML and asset responses.
 
@@ -133,7 +133,7 @@ This repository change does not implement step 4. The existing Cloudflare endpoi
 
 ## Source areas changed
 
-v1.13.8 adds: `worker/model-proxy.ts` (same-origin relay), `worker/dev-proxy.ts` (Vite dev/preview wiring), the `/models/` route in `worker/index.ts`, the `modelHost` / `env.remoteHost` / integrity `remoteHost` wiring in `src/lib/ai-engine.ts` and `src/lib/ai-worker.ts`, real generated values in `src/data/ai-manifest.json`, and `pinModelRequestUrl()` plus revision-normalising `trackedFetch` in `src/lib/ai-integrity.ts` (with `deno-tests/transformers-revision.test.ts` and the vendored runtime under `tests/vendor/`).
+v1.13.8 adds: `worker/model-proxy.ts` (same-origin relay), `worker/dev-proxy.ts` (Vite dev/preview wiring), the `/models/` route in `worker/index.ts`, the `modelHost` / `env.remoteHost` / integrity `remoteHost` wiring in `src/lib/ai-engine.ts` and `src/lib/ai-worker.ts`, real generated values in `src/data/ai-manifest.json`, and `pinModelRequestUrl()` plus revision-normalising `trackedFetch` in `src/lib/ai-integrity.ts`.
 
 v1.13.5 adds: `src/lib/ai-engine.ts` (decision logic with injected environment), `src/lib/ai-diagnostics.ts`, `src/lib/ai-diagnostics-ui.ts`, `src/lib/ai-integrity.ts`, `src/lib/sha256.ts`, `src/data/ai-manifest.json`, `scripts/generate-ai-manifest.mjs`; `src/lib/ai-worker.ts` is now only the wiring. Earlier areas:
 
