@@ -74,7 +74,7 @@ Seven quick questions, a few titles you already know, and a live pull from thous
 
 - Turns each result's rule-based reasons into one natural sentence, running entirely in a Web Worker. Picks a model and quantization tier from your device's memory, core count and WebGPU support, and falls through several CDN options and a short, resource-checked list of pinned models until one fully loads and passes a start-up check.
 - No API key; titles, quiz answers, and prompts are not sent for AI processing. The Transformers.js runtime still comes from a public CDN; model files are fetched through the same Moodsift origin, as described below.
-- **Same-origin model relay.** Transformers.js is pointed at `/models/<repo>/resolve/<pinned-sha>/<file>` instead of Hugging Face. `worker/model-proxy.ts` accepts only the repositories and full commit SHAs in `ai-policy.ts`, follows Hugging Face's storage redirects server-side, relays `GET`/`HEAD` and byte ranges, and streams the body back. The Vite dev and preview servers use the same handler, so local testing matches production. This removes the browser's CORS/redirect dependency; it is not an open proxy.
+- **Same-origin model relay.** Transformers.js is pointed at `/models/<repo>/resolve/<pinned-sha>/<file>` instead of Hugging Face. `worker/model-proxy.ts` accepts only the repositories and full commit SHAs in `ai-policy.ts`, follows Hugging Face's storage redirects server-side, relays `GET`/`HEAD` and byte ranges, and streams the body back. The Vite dev and preview servers use the same handler, so local testing matches production. This removes the browser's CORS/redirect dependency; it is not an open proxy. Transformers.js 4.3.1's discovery helpers omit `revision`, so `ai-integrity.ts` normalises every same-origin request for the candidate's exact repository to its pinned SHA before it is sent; the relay itself still rejects `main`, branches and tags.
 - Choose the priority under Settings → AI engine (Best quality / Balanced / Fastest / Lightweight data saver). It only rewords the rule-based reasons — ranking stays deterministic. Opt-in, never a dependency.
 - **Test on this device** (same tab) runs the same load path as normal use and produces a privacy-safe report you can copy. Downloaded model files are checked against pinned sizes and SHA-256 checksums in the committed manifest; a mismatch fails closed and falls through to the next candidate.
 
@@ -215,7 +215,7 @@ src/
     ai-policy.ts     pure policy: model catalogue, eligibility, prompt and output checks
     ai-settings.ts   the AI engine mode (own storage key, independent of appearance)
     ai-engine.ts     decision logic for loading and recommending a model, with the environment injected so it is unit-tested in Node
-    ai-integrity.ts  streaming size + SHA-256 verification of model files against the manifest
+    ai-integrity.ts  streaming size + SHA-256 verification of model files against the manifest; pins every same-origin model request to the candidate's revision
     sha256.ts        small streaming SHA-256
     ai-diagnostics.ts, ai-diagnostics-ui.ts   "Test on this device" — pure report/classification logic, and its UI
     app-version.ts   app version string for diagnostic reports (must match package.json)
