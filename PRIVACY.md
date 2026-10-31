@@ -12,7 +12,8 @@ not a contractual promise.
 Nothing about you is stored on any server this project runs. Everything
 Moodsift "remembers" about you lives in your browser's `localStorage`,
 on your device only, and the only things sent over the network are the
-direct API calls needed to fetch and score titles.
+API calls needed to fetch and score titles — plus, only if you opt into
+on-device AI, the runtime and model downloads described below.
 
 ## What's stored locally, on your device
 
@@ -63,20 +64,26 @@ rather than pretending otherwise.
   JustWatch directly.
 - **The optional on-device AI** (`src/lib/ai-worker.ts`) loads the
   Transformers.js library from a public CDN (esm.sh, jsDelivr or unpkg)
-  and downloads a model from Hugging Face (pinned revision) the first
-  time you opt in, then runs entirely in your browser via WebGPU or
-  WASM. Those hosts see the normal request metadata (such as your IP
-  address) for those downloads. No title data, rating, quiz answer or
-  prompt is ever sent anywhere for this — "on-device" is literal, and
-  no cloud AI is used as a fallback. In **Lightweight / data saver**
-  mode (Settings → AI engine) nothing is downloaded. The chosen mode
-  is stored in your browser under `cinematch-local-ai:v1`. Downloaded
-  model files are verified against pinned sizes and checksums where the
-  project's manifest has them. **Test on this device** (same tab) checks
-  that those hosts are reachable (including `fastly.jsdelivr.net` and
-  `unpkg.com` as fallbacks for the WASM runtime files); its copyable
-  report contains device signals and error classifications only — no
-  titles, ratings, quiz answers or profile data.
+  the first time you opt in, then runs entirely in your browser via
+  WebGPU or WASM. Model files are requested from the app's own
+  `/models/` route. Cloudflare (the app's host) validates the pinned
+  repository/commit and fetches the file from Hugging Face server-side,
+  so your browser does not connect to Hugging Face directly for model
+  files. Cloudflare still sees the normal request metadata for the
+  download, including your IP address, as any website host does; Hugging
+  Face sees the Worker's request rather than a direct connection from
+  your browser. Both providers' own policies apply.
+  No title data, rating, quiz answer or prompt is ever sent anywhere for
+  this — "on-device" is literal, and no cloud AI is used as a fallback.
+  In **Lightweight / data saver** mode (Settings → AI engine) nothing is
+  downloaded. The chosen mode is stored in your browser under
+  `cinematch-local-ai:v1`. Downloaded model files are verified against
+  the committed manifest's sizes and SHA-256 checksums. **Test on this
+  device** (same tab) checks that the runtime hosts are reachable
+  (including `fastly.jsdelivr.net` and `unpkg.com` as fallbacks for the
+  WASM runtime files); its copyable report contains device signals and
+  error classifications only — no titles, ratings, quiz answers or
+  profile data.
 - **The optional `/api/recommend` Worker route** (`worker/index.ts`) —
   off by default (the Workers AI binding is disabled in
   `wrangler.jsonc`, and the route fails closed without it), and nothing
@@ -108,7 +115,8 @@ rather than pretending otherwise.
 
 This project depends on external APIs it doesn't control the data
 practices of — see [CREDITS.md](./CREDITS.md) for the full list (TMDB,
-OMDb, JustWatch data, Hugging Face's CDN for the optional AI model).
+OMDb, JustWatch data, Hugging Face's model hosting and the public
+JavaScript CDNs used by the optional AI runtime).
 Review their own privacy policies if you have specific concerns.
 
 ## Questions

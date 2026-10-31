@@ -1,6 +1,6 @@
 {
   "name": "moodsift",
-  "version": "1.13.5",
+  "version": "1.13.8",
   "private": true,
   "type": "module",
   "description": "Moodsift \u2014 a fast, framework-free movie & TV recommendation engine.",
@@ -25,12 +25,12 @@
     "@axe-core/playwright": "4.14.0",
     "@playwright/test": "1.64.1",
     "@types/node": "26.6.5",
-    "oxlint": "^1.88.0",
+    "oxlint": "^1.90.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
     "wrangler": "^4.151.3"
     "vite": "^8.3.5",
-    "wrangler": "^4.151.1"
+    "wrangler": "4.151.3"
   },
   "overrides": {
     "undici": "7.30.1",

@@ -73,13 +73,14 @@ Seven quick questions, a few titles you already know, and a live pull from thous
 ### On-device AI — optional
 
 - Turns each result's rule-based reasons into one natural sentence, running entirely in a Web Worker. Picks a model and quantization tier from your device's memory, core count and WebGPU support, and falls through several CDN options and a short, resource-checked list of pinned models until one fully loads and passes a start-up check.
-- No API key; titles, quiz answers, and prompts are not sent for AI processing. Runtime and model downloads still send request metadata, including your IP address, to the download hosts.
+- No API key; titles, quiz answers, and prompts are not sent for AI processing. The Transformers.js runtime still comes from a public CDN; model files are fetched through the same Moodsift origin, as described below.
+- **Same-origin model relay.** Transformers.js is pointed at `/models/<repo>/resolve/<pinned-sha>/<file>` instead of Hugging Face. `worker/model-proxy.ts` accepts only the repositories and full commit SHAs in `ai-policy.ts`, follows Hugging Face's storage redirects server-side, relays `GET`/`HEAD` and byte ranges, and streams the body back. The Vite dev and preview servers use the same handler, so local testing matches production. This removes the browser's CORS/redirect dependency; it is not an open proxy. Transformers.js 4.3.1's discovery helpers omit `revision`, so `ai-integrity.ts` normalises every same-origin request for the candidate's exact repository to its pinned SHA before it is sent; the relay itself still rejects `main`, branches and tags.
 - Choose the priority under Settings → AI engine (Best quality / Balanced / Fastest / Lightweight data saver). It only rewords the rule-based reasons — ranking stays deterministic. Opt-in, never a dependency.
-- **Test on this device** (same tab) runs the same load path as normal use and produces a privacy-safe report you can copy. Downloaded model files are checked against pinned sizes and SHA-256 checksums where the committed manifest has them; a mismatch fails closed and falls through to the next candidate.
+- **Test on this device** (same tab) runs the same load path as normal use and produces a privacy-safe report you can copy. Eligible model downloads recorded in the committed manifest are checked against their pinned sizes and SHA-256 checksums; a mismatch fails closed and falls through to the next candidate. Unmanifested files and cached files without a verification record can be accepted as not verified.
 
 ### Privacy
 
-- **No tracking, no server account.** Nothing is sent anywhere except the TMDB/OMDb API calls needed to fetch and score titles. The local profile lives entirely in your browser's `localStorage`. Details in [PRIVACY.md](./PRIVACY.md).
+- **No tracking, no server account.** Network requests include TMDB/OMDb API calls and optional AI downloads. Runtime files are downloaded directly from public CDNs, whose hosts receive those requests; only model files are relayed through the app's own Worker. The local profile lives entirely in your browser's `localStorage`. Details in [PRIVACY.md](./PRIVACY.md).
 
 ## Screenshots
 
@@ -163,7 +164,7 @@ npm test               # builds with a dummy TMDB key, mocks TMDB, runs desktop 
 npm run test:visual    # opt-in screenshot comparisons
 ```
 
-The suite covers appearance persistence/validation, the quiz → rating → results flow, rating a result, movie/TV id collisions, library re-import semantics, compare, the command menu, keyboard/focus rules, profile storage and taste-memory controls, the local-AI policy/engine/integrity/diagnostics logic, the Worker route, and axe accessibility scans. Real model downloads and real-device inference are not exercised by the suite. Visual baselines are intentionally **not committed** (rendering differs between machines): generate them where they'll be compared with `npm run test:visual -- --update-snapshots`. CI also runs typecheck, lint, build, and Lighthouse.
+The suite covers appearance persistence/validation, the quiz → rating → results flow, rating a result, movie/TV id collisions, library re-import semantics, compare, the command menu, keyboard/focus rules, profile storage and taste-memory controls, the local-AI policy/engine/integrity/diagnostics logic, the `/api/recommend` Worker route, the same-origin `/models/` proxy (allow-list, redirects, Range/HEAD, traversal rejection), and axe accessibility scans. Real model downloads and real-device inference are not exercised by the suite. Visual baselines are intentionally **not committed** (rendering differs between machines): generate them where they'll be compared with `npm run test:visual -- --update-snapshots`. CI also runs typecheck, lint, build, and Lighthouse.
 
 ## Deployment
 
@@ -171,7 +172,7 @@ The suite covers appearance persistence/validation, the quiz → rating → resu
 npm run deploy   # builds, then runs `wrangler deploy`
 ```
 
-Moodsift is a genuine Cloudflare Worker (`wrangler.jsonc` declares `main: worker/index.ts`), not a Pages project — it serves the built `dist/` folder via Workers Static Assets and handles `/api/recommend` itself. Live at **https://moodsift.adj189.workers.dev/**.
+Moodsift is a genuine Cloudflare Worker (`wrangler.jsonc` declares `main: worker/index.ts`), not a Pages project — it serves the built `dist/` folder via Workers Static Assets and handles `/models/` plus the optional `/api/recommend`. `run_worker_first: true` keeps the Worker in front of static assets so `/models/` cannot be shadowed by a file in `dist/` and the COOP/COEP/CSP headers are actually applied to HTML and asset responses. Live at **https://moodsift.adj189.workers.dev/**.
 
 Set `VITE_TMDB_TOKEN` (and optionally `VITE_OMDB_KEY`) as **project variables** in the Cloudflare dashboard so they're present when `npm run build` runs; `.env` is gitignored and never committed.
 
@@ -214,7 +215,7 @@ src/
     ai-policy.ts     pure policy: model catalogue, eligibility, prompt and output checks
     ai-settings.ts   the AI engine mode (own storage key, independent of appearance)
     ai-engine.ts     decision logic for loading and recommending a model, with the environment injected so it is unit-tested in Node
-    ai-integrity.ts  streaming size + SHA-256 verification of model files against the manifest
+    ai-integrity.ts  streaming size + SHA-256 verification of model files against the manifest; pins every same-origin model request to the candidate's revision
     sha256.ts        small streaming SHA-256
     ai-diagnostics.ts, ai-diagnostics-ui.ts   "Test on this device" — pure report/classification logic, and its UI
     app-version.ts   app version string for diagnostic reports (must match package.json)
@@ -223,9 +224,13 @@ src/
   data/              quiz questions, taste-calibration seed titles, ai-manifest.json (pinned model files + checksums)
 scripts/             generate-ai-manifest.mjs — regenerates/checks the AI model manifest
 worker/
-  index.ts           Cloudflare Worker entry — serves dist/ via the ASSETS binding, handles
-                      POST /api/recommend (optional, off by default), and sets the COOP/COEP
-                      (`credentialless`) headers the on-device AI's multi-threaded WASM path needs
+  index.ts           Cloudflare Worker entry — serves dist/ via the ASSETS binding, routes
+                      /models/ to the model relay, handles POST /api/recommend (optional, off
+                      by default), and sets the COOP/COEP (`credentialless`) headers the
+                      on-device AI's multi-threaded WASM path needs
+  model-proxy.ts     same-origin model-file relay: pinned repo/revision allow-list, server-side
+                      redirect validation, GET/HEAD/Range streaming, no open-proxy behaviour
+  dev-proxy.ts       Vite dev/preview middleware that calls the same model-proxy handler
 public/              logo, favicons, app icons, social image
 assets/brand/        full-resolution logo masters (not served)
 docs/                Moodsift-Local-AI-Engine-Policy.md, Moodsift-Taste-Memory.md, visual-redesign-spec.md
@@ -248,7 +253,7 @@ AGENTS.md            instructions for AI coding agents
 
 ### On-device AI
 
-The full policy is in [`docs/Moodsift-Local-AI-Engine-Policy.md`](docs/Moodsift-Local-AI-Engine-Policy.md). In short: ranking is deterministic and never changes; local AI only rewords the supplied reasons; a model is reported ready only after it fully initialises and passes a smoke generation; generation is serial and deterministic; and any failure keeps the original reasons. Cloudflare Workers AI is deferred and not called by the frontend. Model sizes are approximate weight-file sizes, not memory use or measured performance.
+The full policy is in [`docs/Moodsift-Local-AI-Engine-Policy.md`](docs/Moodsift-Local-AI-Engine-Policy.md). In short: ranking is deterministic and never changes; local AI only rewords the supplied reasons; a model is reported ready only after it fully initialises and passes a smoke generation; generation is serial and deterministic; and any failure keeps the original reasons. Model weights and supporting files are fetched from `/models/` on the Moodsift origin and relayed by `worker/model-proxy.ts`; the integrity tracker verifies those same-origin responses against the generated SHA-256 manifest. Cloudflare Workers AI is deferred and not called by the frontend. Model sizes are approximate weight-file sizes, not memory use or measured performance.
 
 <details>
 <summary>History: why on-device AI used to fail</summary>

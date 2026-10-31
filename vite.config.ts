@@ -1,6 +1,11 @@
 import { defineConfig } from 'vite';
+import { modelProxyPlugin } from './worker/dev-proxy';
 
 export default defineConfig({
+  // /models/ must be handled server-side in dev and preview too. The plugin
+  // calls worker/model-proxy.ts (the production handler), so the browser never
+  // receives a Hugging Face redirect to follow directly.
+  plugins: [modelProxyPlugin()],
   build: {
     target: 'es2022',
     sourcemap: true,
@@ -17,5 +22,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+  },
+  preview: {
+    port: 4173,
   },
 });

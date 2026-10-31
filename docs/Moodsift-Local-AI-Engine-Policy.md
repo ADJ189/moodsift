@@ -1,6 +1,6 @@
 # Moodsift Local AI Engine Policy
 
-**Applies to:** Moodsift v1.13.5 (originally written for the UI 1.10.2 local-AI optimizer patch; the v1.13.5 sections below extend it)  
+**Applies to:** Moodsift v1.13.8 (originally written for the UI 1.10.2 local-AI optimizer patch; the v1.13.5 and v1.13.8 sections below extend it)  
 **Cloudflare Workers AI:** intentionally deferred; the existing `/api/recommend` endpoint remains unchanged and is not called by the frontend.
 
 ## Product decision
@@ -49,6 +49,40 @@ Pinned revisions improve reproducibility but do not remove the need to verify th
 9. **Use deterministic decoding and strict output checks.** Do not ask the model for chain-of-thought. Limit output to one sentence / no more than 20 words. Reject malformed, empty, excessively long or obvious preamble/refusal output. These checks verify format and usability; they are **not a semantic fact-check**.
 10. **Fall back safely.** A failed generation returns the supplied rule-based reasons. A generation timeout terminates a wedged worker so later requests do not queue behind it indefinitely. Never block movie discovery, scoring, or results on local AI.
 
+## Same-origin model relay (v1.13.8)
+
+Transformers.js no longer sends model-file requests straight to Hugging Face from the browser. The engine sets:
+
+```ts
+env.remoteHost = `${origin}/models/`;
+env.remotePathTemplate = '{model}/resolve/{revision}/';
+```
+
+so every config/tokenizer/weight request stays on the Moodsift origin. `worker/model-proxy.ts` handles it in production (`worker/index.ts`, before the `ASSETS` fallback) and in the Vite dev/preview server (`worker/dev-proxy.ts`), using the same code path.
+
+The relay is deliberately not an open proxy:
+
+- only repositories and revisions in `src/lib/ai-policy.ts` are accepted, and the revision must be the exact full pinned commit SHA (`main`, branches, tags and shortened SHAs are rejected);
+- only `GET` and `HEAD` are accepted;
+- the upstream URL is rebuilt from trusted constants, never from a client-supplied host;
+- Hugging Face's storage redirects are followed server-side, with a bounded hop count; every hop must be HTTPS on `huggingface.co`, `*.huggingface.co` or `*.hf.co`, with no credentials and no non-443 port;
+- client cookies, authorization headers, query strings and other credentials are not forwarded; only safe conditional headers and Range are relayed;
+- decoded `.`/`..`, encoded slashes/backslashes, control bytes and malformed escapes are rejected;
+- responses are streamed rather than buffered, `206 Partial Content` and `HEAD` are preserved, and upstream cookies/CORS headers are stripped.
+
+Successful pinned responses carry `Cache-Control: public, max-age=31536000, immutable`; errors, invalid ranges and range responses are not promoted to complete-file cache entries. There is no explicit R2 mirror or Cloudflare Cache API layer in this change. The relay removes the browser CORS/redirect dependency; it does not replace the integrity manifest, and the Transformers.js runtime/ONNX WASM assets still come from their public CDNs (with the existing fallback probes).
+
+**Pinned-revision request normalisation (Transformers.js 4.3.1).** The runtime does not thread `revision` through its file-discovery helpers (`pipeline` → `get_pipeline_files` → `get_config` / `get_tokenizer_files`) or through its progress metadata probes. Even when `pipeline(..., { revision })` receives a full SHA, those helpers request `resolve/main/...`. Because the relay correctly rejects `main`, loading failed before the pinned component downloads could run. `src/lib/ai-integrity.ts` therefore exports `pinModelRequestUrl()`, and the integrity tracker's `trackedFetch` (installed as `env.fetch`) rewrites every same-origin request for **the candidate's exact repository** to that candidate's full pinned SHA before fetching and before verification parsing. The rewrite:
+
+- only applies when the tracker's configured revision is a full 40-character lowercase SHA;
+- only applies to the same origin and the configured base path (e.g. `/models/`);
+- only applies to the exact repository the tracker was created for;
+- preserves the file path, query and fragment, and never rewrites to `main`, a branch or a tag.
+
+Requests for another repository or origin are passed through unchanged, so the relay still rejects them. The relay's own rules are unchanged: `main`, branches, tags and shortened SHAs remain invalid. The real-runtime revision-pinning test and vendored bundle are absent from this checkout; `tests/model-proxy.spec.ts` checks that the relay rejects `main`.
+
+`run_worker_first: true` in `wrangler.jsonc` keeps the Worker ahead of static-asset serving: a future `dist/models/` file cannot shadow the relay, and the Worker's COOP/COEP/CSP headers are applied to HTML and asset responses.
+
 ## Diagnostics, integrity and recommendations (v1.13.5)
 
 **Settings → AI engine → Test on this device** runs the *same* load path as normal use (`src/lib/ai-engine.ts`): the same worker, the same mode, the same candidate policy and the same start-up checks. A diagnostic that could pass while the real feature fails is not allowed to exist.
@@ -75,7 +109,7 @@ Each attempt keeps: model / backend / dtype / pinned revision; stage (`runtime`,
 
 States shown: **Verified** (every needed file matched), **Not yet verified** (no manifest entry, a file outside the manifest, or cached files with no recorded verification) and **Verification failed**. A file is never called verified merely because it downloaded. Cached files are re-checked by metadata (size + our own recorded verification) — not re-hashed on every page load; the diagnostic purges unrecorded cached copies so they are re-downloaded and verified.
 
-**The shipped manifest is intentionally empty of hashes.** Real hashes must come from the pinned upstream revisions in a trusted environment: run `npm run ai:manifest`, review the diff, commit it; `npm run ai:manifest:check` is the release gate. Until then every model honestly reports *Not yet verified*.
+**The shipped manifest contains real generated values** for every pinned repository and dtype. It is produced from the pinned upstream revisions in a trusted environment: run `npm run ai:manifest`, review the diff, commit it; `npm run ai:manifest:check` is the release gate. If a manifest entry is missing, empty, malformed or for a different revision, the honest state is *Not yet verified*; a mismatching download is *Verification failed*. Never hand-edit hashes or treat a successful download as proof of integrity.
 
 ### Recommendations
 
@@ -99,6 +133,8 @@ This repository change does not implement step 4. The existing Cloudflare endpoi
 
 ## Source areas changed
 
+v1.13.8 adds: `worker/model-proxy.ts` (same-origin relay), `worker/dev-proxy.ts` (Vite dev/preview wiring), the `/models/` route in `worker/index.ts`, the `modelHost` / `env.remoteHost` / integrity `remoteHost` wiring in `src/lib/ai-engine.ts` and `src/lib/ai-worker.ts`, real generated values in `src/data/ai-manifest.json`, and `pinModelRequestUrl()` plus revision-normalising `trackedFetch` in `src/lib/ai-integrity.ts`.
+
 v1.13.5 adds: `src/lib/ai-engine.ts` (decision logic with injected environment), `src/lib/ai-diagnostics.ts`, `src/lib/ai-diagnostics-ui.ts`, `src/lib/ai-integrity.ts`, `src/lib/sha256.ts`, `src/data/ai-manifest.json`, `scripts/generate-ai-manifest.mjs`; `src/lib/ai-worker.ts` is now only the wiring. Earlier areas:
 
 - `src/lib/ai-settings.ts`: saved priority options and user-facing mode descriptions.
@@ -111,4 +147,4 @@ v1.13.5 adds: `src/lib/ai-engine.ts` (decision logic with injected environment),
 
 ## Verification status
 
-See the v1.13.5 entry in `CHANGELOG.md` for exactly what was run and what was not. In short: engine, integrity, diagnostics and Worker-route logic are unit-tested in Node; no real model download, real-device inference or real-browser run was performed. Do not publish any model/backend as "tested" from those results alone — the release gates in `nextupdate.md` §6 (real-device diagnostics for every advertised model/backend) still apply.
+See the v1.13.8 entry in `CHANGELOG.md` for exactly what was run and what was not. In short: the relay is covered by deterministic Deno and Playwright tests, a real local Wrangler Worker returned a real pinned `config.json` through `/models/`, live model bytes were streamed through both Vite dev and Vite preview, and the unmodified Transformers.js 4.3.1 runtime was traced for all three required candidates with zero `resolve/main/` requests. No full model download, real-device inference or production deployment was performed. Do not publish any model/backend as "tested" from those results alone — the release gates in `nextupdate.md` §6 (real-device diagnostics for every advertised model/backend) still apply.

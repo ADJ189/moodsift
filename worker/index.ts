@@ -6,7 +6,11 @@
 //
 //   1. Serve the built `dist/` output for everything that isn't an API
 //      route, via the `ASSETS` binding.
-//   2. Handle POST /api/recommend — the optional Workers AI re-ranking
+//   2. Relay approved, pinned model files under /models/ from Hugging Face
+//      through the Moodsift origin (worker/model-proxy.ts). This removes the
+//      browser's CORS/redirect dependency from model downloads; inference
+//      still happens entirely on the user's device.
+//   3. Handle POST /api/recommend — the optional Workers AI re-ranking
 //      pass (ported from the old functions/api/recommend.ts Pages
 //      Function; behavior is unchanged, it's just a genuine Worker route
 //      now). This is an enhancement layer only: the client-side engine
@@ -25,6 +29,8 @@
 // env vars baked into the client bundle at `npm run build` (see README —
 // set them as Cloudflare project variables, not Worker secrets, since
 // Wrangler needs them present at build time, not request time).
+
+import { handleModelProxy, MODEL_PREFIX } from './model-proxy';
 
 export interface Env {
   ASSETS: { fetch(request: Request): Promise<Response> };
@@ -158,6 +164,13 @@ function json(body: unknown, status = 200, extra: Record<string, string> = {}): 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    // Model files must reach the Worker before the static-asset fallback;
+    // /models/ is not a directory in dist/. The proxy owns validation,
+    // redirect following, range handling and streaming.
+    if (url.pathname.startsWith(MODEL_PREFIX)) {
+      return handleModelProxy(request, url);
+    }
 
     if (url.pathname === '/api/recommend') {
       if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405);

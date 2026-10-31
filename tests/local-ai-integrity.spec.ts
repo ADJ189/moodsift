@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { Sha256 } from '../src/lib/sha256';
 import {
@@ -14,6 +15,9 @@ import {
 const REPO = 'onnx-community/SmolLM2-135M-Instruct-ONNX';
 const REV = 'b8a5c0f183b78c55955a5364f610c36668b5e681';
 const url = (p: string) => `https://huggingface.co/${REPO}/resolve/${REV}/${p}`;
+const MODEL_ORIGIN = 'https://moodsift.example';
+const MODEL_HOST = `${MODEL_ORIGIN}/models/`;
+const modelUrl = (p: string) => `${MODEL_HOST}${REPO}/resolve/${REV}/${p}`;
 const hex = (b: Uint8Array) => createHash('sha256').update(b).digest('hex');
 
 function streamOf(bytes: Uint8Array, chunk = 1000): ReadableStream<Uint8Array> {
@@ -84,12 +88,22 @@ test.describe('manifest handling', () => {
   });
 
   test('shipped manifest never claims hashes it does not have, and matches the pinned policy', async () => {
-    const shipped = (await import('../src/data/ai-manifest.json', { with: { type: 'json' } })).default as ManifestFileShape;
+    // Read the committed JSON directly. Playwright's transform does not support
+    // import attributes (`with { type: 'json' }`) in every runner, and this test
+    // must also work under a plain Node/Deno test runner.
+    const shipped = JSON.parse(readFileSync(new URL('../src/data/ai-manifest.json', import.meta.url), 'utf8')) as ManifestFileShape;
     const { MODELS } = await import('../src/lib/ai-policy');
+    expect(shipped.generatedAt).toEqual(expect.any(String));
     for (const [family, m] of Object.entries(shipped.models)) {
       const policy = MODELS[family as keyof typeof MODELS] as unknown as { revision: string };
       expect(m.revision, family).toBe(policy.revision);
-      for (const d of Object.values(m.dtypes)) for (const f of d.files) expect(f.sha256).toMatch(/^[0-9a-f]{64}$/);
+      for (const d of Object.values(m.dtypes)) {
+        expect(d.files.length, `${family} files`).toBeGreaterThan(0);
+        for (const f of d.files) {
+          expect(f.sha256).toMatch(/^[0-9a-f]{64}$/);
+          expect(f.size).toBeGreaterThan(0);
+        }
+      }
     }
   });
 
@@ -98,6 +112,10 @@ test.describe('manifest handling', () => {
     expect(parseModelUrl(url('onnx/model_quantized.onnx'))).toEqual({ repo: REPO, revision: REV, path: 'onnx/model_quantized.onnx' });
     expect(parseModelUrl('https://evil.example/' + REPO + '/resolve/' + REV + '/x')).toBeNull();
     expect(parseModelUrl('not a url')).toBeNull();
+    // Same-origin proxy host with a base path (the production /models/ route).
+    expect(parseModelUrl(modelUrl('onnx/model_quantized.onnx'), MODEL_HOST)).toEqual({ repo: REPO, revision: REV, path: 'onnx/model_quantized.onnx' });
+    expect(parseModelUrl(url('onnx/model_quantized.onnx'), MODEL_HOST)).toBeNull();
+    expect(parseModelUrl(modelUrl('onnx/model_quantized.onnx'), `${MODEL_ORIGIN}/other/`)).toBeNull();
   });
 });
 
@@ -210,6 +228,19 @@ test.describe('integrity tracker (streaming verification)', () => {
     expect(res.status).toBe(404);
     expect(tracker.lastFailure()).toMatchObject({ status: 404 });
     expect(tracker.hasMismatch()).toBe(false);
+  });
+
+  test('verifies files fetched through the same-origin /models/ proxy', async () => {
+    const tracker = createIntegrityTracker({
+      repo: REPO,
+      revision: REV,
+      entry,
+      baseFetch: async () => respond(file),
+      store: memoryStore(),
+      remoteHost: MODEL_HOST,
+    });
+    expect(await drain(await tracker.fetch(modelUrl('onnx/model_quantized.onnx')))).toBe(file.length);
+    expect(await tracker.finalize()).toMatchObject({ state: 'verified', verifiedFiles: 1, totalFiles: 1 });
   });
 
   test('cache-backed verified store round-trips and degrades to "nothing recorded"', async () => {
