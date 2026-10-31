@@ -38,6 +38,8 @@ const ctx = self as unknown as {
   };
   crossOriginIsolated?: boolean;
   caches?: CacheStorage;
+  /** The page/worker origin used to build the same-origin /models/ URL. */
+  location: { origin: string };
 };
 
 /** Collects device estimates, treating coarsePointer as a mobile hint and
@@ -87,6 +89,10 @@ const engine = createEngine({
   baseFetch: (input, init) => fetch(input, init),
   cacheStorage: ctx.caches,
   manifest: manifest as ManifestFileShape,
+  // Same-origin model downloads: worker/index.ts (and the Vite dev/preview
+  // middleware) serve /models/ by validating the pinned repository/revision
+  // and relaying Hugging Face server-side. Inference stays in this worker.
+  modelHost: new URL('/models/', ctx.location.origin).href,
   now: () => Date.now(),
   isOffline: () => ctx.navigator.onLine === false,
 });

@@ -13,6 +13,18 @@
 // construction fails, and nothing is stored in the browser cache for that
 // file (a failed `cache.put` stores nothing).
 //
+// Revision pinning: Transformers.js 4.3.1 does not thread `revision` through
+// its file-discovery helpers (`get_pipeline_files` -> `get_config` /
+// `get_tokenizer_files`, and the progress metadata calls). Those requests fall
+// back to `resolve/main/...` even when `pipeline(..., { revision })` was given.
+// Because the same-origin relay correctly refuses `main`, the pipeline failed
+// before the pinned component downloads could run. `trackedFetch` therefore
+// rewrites every same-origin request for THIS candidate's repository to the
+// pinned revision before it reaches the network. The relay stays strict: it
+// still rejects `main`, branches and tags, and only the exact allow-listed
+// repository/SHA pair is reachable. This also makes the discovery responses
+// verifiable, because `parseModelUrl` only matches the pinned revision.
+//
 // Honesty rules (see docs/Moodsift-Local-AI-Engine-Policy.md):
 //   - "verified" means every file the model needs was hashed and matched.
 //   - No manifest entry / empty manifest / a file outside the manifest /
@@ -23,6 +35,7 @@
 //
 // Pure: no DOM or worker globals — fetch/caches are injected, so the whole
 // thing is unit-tested in Node.
+
 
 import { Sha256 } from './sha256';
 
@@ -97,6 +110,10 @@ export interface ParsedModelUrl {
 
 /** Splits a model resolve URL into decoded repo, revision and path, or returns
  * null for an invalid URL, another origin or an unrecognized path.
+ *
+ * `remoteHost` may include a base path, e.g. `https://moodsift.example/models/`.
+ * That is the same-origin proxy route used by ai-engine.ts; without stripping
+ * the base path the tracker would not recognise the requests it must verify.
  * Throws TypeError for an invalid remoteHost and URIError for malformed escapes. */
 export function parseModelUrl(raw: string, remoteHost = 'https://huggingface.co/'): ParsedModelUrl | null {
   let u: URL;
@@ -107,7 +124,11 @@ export function parseModelUrl(raw: string, remoteHost = 'https://huggingface.co/
   }
   const host = new URL(remoteHost);
   if (u.origin !== host.origin) return null;
-  const m = /^\/([^/]+\/[^/]+)\/resolve\/([^/]+)\/(.+)$/.exec(u.pathname);
+
+  const base = host.pathname.endsWith('/') ? host.pathname : `${host.pathname}/`;
+  if (!u.pathname.startsWith(base)) return null;
+  const rest = u.pathname.slice(base.length);
+  const m = /^([^/]+\/[^/]+)\/resolve\/([^/]+)\/(.+)$/.exec(rest);
   if (!m) return null;
   return { repo: decodeURIComponent(m[1]!), revision: decodeURIComponent(m[2]!), path: decodeURIComponent(m[3]!) };
 }
@@ -191,6 +212,54 @@ export function cacheStore(storage: CacheStorageLike | undefined, name = 'moodsi
 
 export type FetchFn = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
+/** A pinned revision is a full 40-character commit SHA, never `main`. */
+const PINNED_REVISION = /^[0-9a-f]{40}$/;
+
+/**
+ * Rewrites a same-origin model request to the pinned revision for the SAME
+ * repository. This exists because Transformers.js 4.3.1's discovery helpers
+ * omit `revision`, producing `resolve/main/...` requests even when the caller
+ * supplied a pin. Only the revision segment is replaced; the origin, base
+ * path, repo, file path, query and hash are preserved. Requests for another
+ * repository, another origin, a malformed URL, or a tracker whose configured
+ * revision is not a full SHA are returned unchanged (the relay then rejects
+ * them). Never rewrites to a mutable revision.
+ */
+export function pinModelRequestUrl(raw: string, opts: { remoteHost: string; repo: string; revision: string }): string {
+  if (!PINNED_REVISION.test(opts.revision)) return raw;
+
+  let u: URL;
+  let host: URL;
+  try {
+    u = new URL(raw);
+    host = new URL(opts.remoteHost);
+  } catch {
+    return raw;
+  }
+  if (u.origin !== host.origin) return raw;
+
+  const base = host.pathname.endsWith('/') ? host.pathname : `${host.pathname}/`;
+  if (!u.pathname.startsWith(base)) return raw;
+
+  const rest = u.pathname.slice(base.length);
+  const match = /^([^/]+\/[^/]+)\/resolve\/([^/]+)\/(.+)$/.exec(rest);
+  if (!match) return raw;
+
+  let repo: string;
+  let revision: string;
+  try {
+    repo = decodeURIComponent(match[1]!);
+    revision = decodeURIComponent(match[2]!);
+  } catch {
+    return raw;
+  }
+  if (repo !== opts.repo || revision === opts.revision) return raw;
+
+  const revisionStart = base.length + match[1]!.length + '/resolve/'.length;
+  u.pathname = `${u.pathname.slice(0, revisionStart)}${encodeURIComponent(opts.revision)}${u.pathname.slice(revisionStart + match[2]!.length)}`;
+  return u.toString();
+}
+
 export interface TrackerOptions {
   repo: string;
   revision: string;
@@ -245,14 +314,17 @@ export function createIntegrityTracker(opts: TrackerOptions): IntegrityTracker {
   const urlOf = (path: string) => `${remoteHost.replace(/\/?$/, '/')}${repo}/resolve/${encodeURIComponent(revision)}/${path}`;
 
   /** Forwards requests and records failures, verifying manifested response bodies
-   * as they are consumed. A mismatch errors the stream with IntegrityError and
-   * attempts cache removal; fetch and verification-store errors propagate.
+   * as they are consumed. Same-origin requests for this candidate's repo are
+   * rewritten to the pinned revision first (Transformers.js 4.3.1 discovery
+   * otherwise asks for `main`). A mismatch errors the stream with IntegrityError
+   * and attempts cache removal; fetch and verification-store errors propagate.
    * HTTP failures are returned as responses rather than thrown. */
   const trackedFetch: FetchFn = async (input, init) => {
-    const raw = input instanceof URL ? input.toString() : String(input);
+    const requested = input instanceof URL ? input.toString() : String(input);
+    const raw = pinModelRequestUrl(requested, { remoteHost, repo, revision });
     let res: Response;
     try {
-      res = await baseFetch(input, init);
+      res = await baseFetch(raw, init);
     } catch (err) {
       failure = { url: sanitizeUrl(raw), error: err instanceof Error ? `${err.name}: ${err.message}`.slice(0, 160) : 'network error' };
       throw err;

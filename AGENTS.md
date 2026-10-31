@@ -4,7 +4,7 @@ Instructions for AI coding agents (Claude, Copilot, Cursor, Codex, Gemini, etc.)
 
 ## What this is
 
-Moodsift (v1.13.5) is a framework-free movie/TV recommendation web app. A 7-question quiz plus a few ratings feeds a **deterministic client-side scoring engine** over live TMDB data. Optional on-device AI rewords the explanation text only. No accounts, no analytics, no server-side user data.
+Moodsift (v1.13.8) is a framework-free movie/TV recommendation web app. A 7-question quiz plus a few ratings feeds a **deterministic client-side scoring engine** over live TMDB data. Optional on-device AI rewords the explanation text only. No accounts, no analytics, no server-side user data.
 
 - **Live:** https://moodsift.adj189.workers.dev/
 - **Stack:** TypeScript (`strict`) + Vite 8, no UI framework. Cloudflare Worker (Workers Static Assets). Tests: Playwright + axe. Lint: oxlint.
@@ -106,8 +106,10 @@ Full policy: `docs/Moodsift-Local-AI-Engine-Policy.md`. Key invariants:
 
 - AI **only rewords** supplied rule-based reasons. Any failure, timeout or invalid output keeps the original reasons.
 - A model is "ready" only after full init **and** a passing smoke generation. Never shorten loading, init, smoke-check or output-validation steps to appear faster.
-- Generation is serial and deterministic. Model downloads happen at runtime from CDN and are **never** part of `npm install`.
-- Pinned HF revisions live in `ai-policy.ts` (source of truth); `ai-manifest.json` must match (a test asserts this). Checksum mismatches **fail closed**, discard the cache, and fall through to the next candidate.
+- Generation is serial and deterministic. Model downloads happen at runtime and are **never** part of `npm install`.
+- Model files go through the same-origin `/models/` relay (`worker/model-proxy.ts`), not directly to Hugging Face. The handler validates the repo/revision allow-list and every redirect hop, relays only GET/HEAD/Range, and streams; Vite dev/preview uses the same handler. Do not widen the allow-list, forward client credentials/query strings, or turn it into an open proxy.
+- Pinned HF revisions live in `ai-policy.ts` (source of truth); `ai-manifest.json` must match and is generated from upstream, never hand-edited. Checksum mismatches **fail closed**, discard the cache, and fall through to the next candidate.
+- **Transformers.js 4.3.1 discovery requests omit `revision`.** Its `get_pipeline_files` → `get_config` / `get_tokenizer_files` helpers and progress metadata probes request `resolve/main/...` even when `pipeline(..., { revision })` gets a full SHA. `ai-integrity.ts` normalises same-origin requests for the candidate's exact repo to its pinned SHA inside `trackedFetch` (installed as `env.fetch`). Keep that hook, keep the rewrite limited to the exact repo/origin/full SHA, and keep the relay strict — never allow `main`, branches or tags. The real-runtime regression test and vendored bundle are absent from this checkout; `tests/model-proxy.spec.ts` checks that the relay rejects `main`.
 - Don't override `wasmPaths` in the worker (a past bug: wrong CDN folder → every WASM load 404'd).
 - Multi-threaded WASM only when `self.crossOriginIsolated`; WebGPU only after a real `navigator.gpu.requestAdapter()`.
 - Modes never silently switch to cloud AI, and the saved mode is never changed without user action. No AI path receives stored ratings or the profile.
@@ -137,10 +139,12 @@ Full policy: `docs/Moodsift-Local-AI-Engine-Policy.md`. Key invariants:
 
 ## Known issues / watch-outs (verify before relying on these)
 
-- **`src/data/ai-manifest.json` has empty `files` arrays** (`generatedAt: null`), so every model currently reports *Not yet verified*. `npm run ai:manifest` must be run in a network-enabled environment, the diff reviewed, and the result committed; then `ai:manifest:check` becomes a meaningful release gate.
+- `src/data/ai-manifest.json` now contains real generated sizes/SHA-256 values for every pinned repo/dtype. Regenerate it with `npm run ai:manifest` whenever a pin or required file changes; `npm run ai:manifest:check` is the release gate. Never invent or hand-edit hashes.
+- `/models/` has no explicit Cloudflare edge-cache layer. Successful pinned responses, including `206` Range responses, carry a one-year immutable `Cache-Control` policy; errors are `no-store`. Add an R2/Cache API layer separately if repeat-download cost becomes a problem.
+- `run_worker_first` is `true` so the Worker applies COOP/COEP and CSP headers to assets, and so `/models/` cannot be shadowed by a future `dist/models/` file. Do not change it back without re-checking those headers in a real Wrangler run.
 - **`@types/node` is 26.x but CI runs Node 22.** Consider pinning the types to match the runtime in a separate change (needs a lockfile update).
 - Full CSP is still Report-Only (see above).
-- The Playwright suites and real model downloads/inference have not been verified in every environment this was developed in; confirm in CI.
+- The Playwright suites pass locally under Deno's Node compatibility, but real model downloads/inference and the deployed Worker have not been verified in every environment; confirm in CI and production.
 - Keep docs in sync: when behaviour changes, update `README.md` (Architecture section included), `PRIVACY.md`, `SECURITY.md` and `CHANGELOG.md` in the same change.
 
 ## Working in this repo without a local clone

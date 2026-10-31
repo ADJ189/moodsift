@@ -4,6 +4,7 @@ import { createEngine, RuntimeImportError, type EngineDeps, type InMsg, type Out
 import { buildCandidates, MODELS, type ResourceSnapshot } from '../src/lib/ai-policy';
 import type { ManifestFileShape } from '../src/lib/ai-integrity';
 
+const MODEL_HOST = 'https://moodsift.example/models/';
 const strong: ResourceSnapshot & { webgpuApi: boolean } = { deviceMemoryGb: 8, cores: 8, mobile: false, webgpuAdapter: true, crossOriginIsolated: true, webgpuApi: true };
 const weak: ResourceSnapshot & { webgpuApi: boolean } = { deviceMemoryGb: 2, cores: 2, mobile: true, webgpuAdapter: false, crossOriginIsolated: false, webgpuApi: false };
 
@@ -17,7 +18,7 @@ interface Harness {
   posts: OutMsg[];
   calls: { pipeline: string[]; fetched: string[]; imports: number; detects: number; cacheOpens: number };
   run(msg: InMsg): Promise<OutMsg>;
-  env: { backends: { onnx: { wasm: { wasmPaths: { mjs: string; wasm: string }; numThreads?: number } } }; cacheKey: string; fetch?: unknown };
+  env: { backends: { onnx: { wasm: { wasmPaths: { mjs: string; wasm: string }; numThreads?: number } } }; cacheKey: string; fetch?: unknown; remoteHost?: string; remotePathTemplate?: string };
   cacheMap: Map<string, Response>;
   good: Uint8Array;
 }
@@ -50,7 +51,7 @@ function harness(opts: { behaviour?: Record<string, Behaviour>; resources?: type
     calls.pipeline.push(repo);
     const b = opts.behaviour?.[repo] ?? 'ok';
     if (b === 'network') {
-      await (env.fetch as (u: string) => Promise<Response>)(`https://huggingface.co/${repo}/resolve/x/config.json?download=1`).catch(() => undefined);
+      await (env.fetch as (u: string) => Promise<Response>)(`${MODEL_HOST}${repo}/resolve/x/config.json?download=1`).catch(() => undefined);
       throw new TypeError('NetworkError when attempting to fetch resource.');
     }
     const fullDownload = () => {
@@ -66,7 +67,7 @@ function harness(opts: { behaviour?: Record<string, Behaviour>; resources?: type
     if (b === 'oom') throw new Error('std::bad_alloc: out of memory');
     if (b === 'bad-bytes' || b === 'swallow-bad-bytes') {
       const fam = (Object.values(MODELS) as unknown as { repo: string; revision: string }[]).find((m) => m.repo === repo)!;
-      const res = await (env.fetch as (u: string) => Promise<Response>)(`https://huggingface.co/${repo}/resolve/${fam.revision}/onnx/model.onnx`);
+      const res = await (env.fetch as (u: string) => Promise<Response>)(`${MODEL_HOST}${repo}/resolve/${fam.revision}/onnx/model.onnx`);
       try {
         await res.arrayBuffer();
       } catch (e) {
@@ -76,7 +77,7 @@ function harness(opts: { behaviour?: Record<string, Behaviour>; resources?: type
     }
     if (b === 'ok') {
       const fam = (Object.values(MODELS) as unknown as { repo: string; revision: string }[]).find((m) => m.repo === repo)!;
-      await (await (env.fetch as (u: string) => Promise<Response>)(`https://huggingface.co/${repo}/resolve/${fam.revision}/onnx/model.onnx`)).arrayBuffer();
+      await (await (env.fetch as (u: string) => Promise<Response>)(`${MODEL_HOST}${repo}/resolve/${fam.revision}/onnx/model.onnx`)).arrayBuffer();
     }
     o.progress_callback?.({ status: 'done', file: 'onnx/model.onnx', loaded: 1, total: 1 });
     const gen = async (messages: { role: string; content: string }[]) => {
@@ -99,6 +100,7 @@ function harness(opts: { behaviour?: Record<string, Behaviour>; resources?: type
     baseFetch,
     cacheStorage: { open: async () => (calls.cacheOpens++, { match: async (k) => cacheMap.get(k)?.clone(), put: async (k, r) => void cacheMap.set(k, r), delete: async (k) => cacheMap.delete(k) }) },
     manifest: opts.manifest ?? ({ schema: 1, generatedAt: null, models: {} } as ManifestFileShape),
+    modelHost: MODEL_HOST,
     now: () => Date.now(),
     isOffline: () => false,
     smokeTimeoutMs: 60,
@@ -131,6 +133,17 @@ test.describe('local AI engine (real decision code, injected environment)', () =
     expect(result(out).summary).toMatch(/intentionally disabled/);
     expect(h.calls).toMatchObject({ imports: 0, detects: 0, cacheOpens: 0, pipeline: [] });
     expect(h.calls.fetched).toEqual([]);
+  });
+
+  test('configures Transformers.js to download through the same-origin /models/ host', async () => {
+    const h = harness();
+    const out = await h.run(load('fastest'));
+    expect(out.type).toBe('ready');
+    expect(h.env).toMatchObject({ remoteHost: MODEL_HOST, remotePathTemplate: '{model}/resolve/{revision}/' });
+    const downloads = h.calls.fetched.filter((u) => u.includes('/resolve/'));
+    expect(downloads.length).toBeGreaterThan(0);
+    expect(downloads.every((u) => u.startsWith(MODEL_HOST))).toBe(true);
+    expect(downloads.some((u) => u.includes('/models/'))).toBe(true);
   });
 
   test('every non-lightweight mode starts its first eligible candidate and passes', async () => {
@@ -175,7 +188,9 @@ test.describe('local AI engine (real decision code, injected environment)', () =
     const r = result(out);
     expect(r.outcome).toBe('failed');
     expect(r.attempts.filter((a) => !a.ok)).toHaveLength(cands.length);
-    for (const a of r.attempts) expect(a).toMatchObject({ stage: 'download', kind: 'network', host: 'huggingface.co' });
+    // Model files now go through the same-origin proxy, so the failure is
+    // attributed to the Moodsift host rather than huggingface.co.
+    for (const a of r.attempts) expect(a).toMatchObject({ stage: 'download', kind: 'network', host: 'moodsift.example' });
     expect(JSON.stringify(r)).not.toContain('download=1'); // query strings never leave the engine
     expect(r.recommendation).toBeNull();
     if (out.type === 'error') expect(out.message).toMatch(/No on-device model could be started\./);
