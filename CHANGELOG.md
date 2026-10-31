@@ -34,7 +34,7 @@ Local AI no longer asks the browser to fetch model files from `huggingface.co` d
 ### Verification
 Run here with Deno 2.9.8: `tsc --noEmit` (TypeScript 7.0.2), `oxlint` 1.89.0 and `vite build` 8.3.5 all clean; the 33 Deno tests pass (27 handler/integration plus 6 real-Transformers.js revision-pinning tests); the targeted Playwright suites pass (138/138 for proxy, AI engine, integrity and profile storage; 22/22 for appearance with a 300 s timeout — the default 60 s is too short for the 80-keystroke focus test under Deno). Live checks: Vite dev and preview returned real pinned `config.json` (200), `HEAD` (200) and `Range: bytes=0-15` (206), and rejected a mutable `main` revision (404); a local `wrangler dev` Worker returned the same results, rejected `POST` (405), and stamped COOP/COEP/CSP on the root document. **Not completed:** the full 429-test two-viewport Playwright suite — browser actions are extremely slow under Deno here (about 50 s per UI test), so it was stopped after 25 passing, 0 failing; the targeted suites above cover the changed surface. **Not run:** a full model download, real-device inference, production deployment, or a production-browser test. No production hashes or performance numbers are claimed beyond the generated manifest.
 
-## [Unreleased] — Settings studio redesign (Projection Booth)
+## [1.13.6] — Settings studio redesign (Projection Booth)
 
 Presentation-only redesign of the Settings workspace, following `Moodsift-Settings-Projection-Booth-Redesign-Plan.md`. No preference, storage, AI, search, ranking or taste-memory logic changed; the nine section ids, legacy tab names, auto-save, undo/redo, compare/restore, looks, import/export and scoped resets are untouched.
 
