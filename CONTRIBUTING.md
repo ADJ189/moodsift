@@ -46,14 +46,36 @@ npm run dev
 npm run typecheck   # must be clean — strict mode, covers src/, worker/, tests/ and configs
 npm run lint        # oxlint — must be clean
 npm run build       # must succeed (runs typecheck first)
-npm test            # Playwright + axe, desktop and mobile Chromium (TMDB is mocked)
+npm test            # Playwright fast gate: Chromium desktop + mobile (TMDB is mocked)
+npm run test:deno   # native Deno tests for the pure modules
 ```
 
-Run `npm run test:install` once to download Chromium for Playwright. CI
-runs `npm audit`, typecheck, lint, build, the tests and Lighthouse on
-every PR. New UI or behaviour should come with a test (and an axe scan
-for new Settings sections, card types, design styles or search types).
-Visual snapshots are opt-in (`npm run test:visual`) and not committed.
+For a change that touches layout or a browser API, also run the wider
+matrix — it is slower but catches engine-specific regressions:
+
+```bash
+npm run test:devices   # tablet, 320px, landscape, WebKit/Firefox mobile
+npm run test:engines   # WebKit and Firefox, desktop + mobile
+npm run test:matrix    # all nine projects (the release check)
+```
+
+Run `npm run test:install` once to download Chromium for Playwright;
+the wider matrix needs `npx playwright install chromium firefox webkit`.
+Every Playwright command is pinned to **three workers**. Don't raise it:
+the tests drive real multi-screen flows against one shared preview server,
+so more workers measure the host, not the app.
+
+The browser suite and the native Deno suite are disjoint. Browser specs are
+`tests/*.spec.ts`; Deno tests are `tests/deno/*.test.ts` and are excluded
+from both `tsconfig.json` and `playwright.config.ts` (`testMatch` is
+`**/*.spec.ts`). If you add a pure-logic test, put it under `tests/deno/`
+and use `Deno.test` + `jsr:@std/assert`; don't spin up a browser for code
+that needs no DOM.
+
+CI runs `npm audit`, typecheck, lint, build, the tests and Lighthouse on
+Node 26. New UI or behaviour should come with a test (and an axe scan for
+new Settings sections, card types, design styles or search types). Visual
+snapshots are opt-in (`npm run test:visual`) and not committed.
 
 Tests don't cover real model downloads or real-device inference. If your
 change touches the on-device AI or WebGPU/WASM paths, say in the PR

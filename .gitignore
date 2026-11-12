@@ -9,4 +9,5 @@ dist-e2e/
 dist-e2e-nokey/
 test-results/
 playwright-report/
+.deno_cache/
 tests/**/*-snapshots/

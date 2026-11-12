@@ -4,10 +4,10 @@ Instructions for AI coding agents (Claude, Copilot, Cursor, Codex, Gemini, etc.)
 
 ## What this is
 
-Moodsift (v1.13.8) is a framework-free movie/TV recommendation web app. A 7-question quiz plus a few ratings feeds a **deterministic client-side scoring engine** over live TMDB data. Optional on-device AI rewords the explanation text only. No accounts, no analytics, no server-side user data.
+Moodsift (v1.14.0) is a framework-free movie/TV recommendation web app. A 7-question quiz plus a few ratings feeds a **deterministic client-side scoring engine** over live TMDB data. Optional on-device AI rewords the explanation text only. No accounts, no analytics, no server-side user data.
 
 - **Live:** https://moodsift.adj189.workers.dev/
-- **Stack:** TypeScript (`strict`) + Vite 8, no UI framework. Cloudflare Worker (Workers Static Assets). Tests: Playwright + axe. Lint: oxlint.
+- **Stack:** TypeScript (`strict`) + Vite 8, no UI framework. Cloudflare Worker (Workers Static Assets). Tests: Playwright + axe, plus native Deno tests. Lint: oxlint. Node 26 in CI; Deno 2.9 works as an alternative runtime.
 - **Deploy target:** a real Cloudflare **Worker** (`wrangler.jsonc`, `main: worker/index.ts`), *not* Pages.
 
 ## Commands
@@ -19,12 +19,22 @@ npm run dev              # Vite dev server (port 5173)
 npm run typecheck        # tsc --noEmit — covers src/, worker/, tests/, configs
 npm run lint             # oxlint
 npm run build            # tsc --noEmit && vite build
-npm test                 # Playwright, chromium-desktop + chromium-mobile (mocked TMDB)
+npm test                 # Playwright fast gate, chromium-desktop + chromium-mobile (mocked TMDB)
+npm run test:devices     # tablet, 320px, landscape, WebKit/Firefox mobile
+npm run test:engines     # WebKit + Firefox desktop/mobile
+npm run test:matrix      # every Playwright project (slow; release check)
+npm run test:deno        # native Deno tests for pure modules
 npm run test:visual      # opt-in screenshot specs (baselines are NOT committed)
 npm run ai:manifest      # regenerate src/data/ai-manifest.json (needs huggingface.co access)
 npm run ai:manifest:check  # release gate: committed manifest must match upstream
 npm run worker:dev       # run the real Worker locally against dist/
+deno task check|lint|build|test   # same gates through Deno
 ```
+
+Every Playwright command must keep `workers: 3` or lower. Do not raise it: each
+test drives a real multi-screen flow and more workers make the shared preview
+server and host CPU the thing being measured. Do not add `workers` overrides
+that bypass the config.
 
 **Definition of done for any change:** `npm run typecheck`, `npm run lint` and `npm run build` pass clean. Run `npm test` when you touch UI, storage, AI, or the Worker. CI also runs `npm audit --audit-level=high` and Lighthouse. If you could not run something, say so explicitly — never claim it passed.
 
@@ -68,7 +78,10 @@ src/
 worker/index.ts         serves dist/ via ASSETS; COOP/COEP; CSP; optional POST /api/recommend
 scripts/generate-ai-manifest.mjs
 tests/                  Playwright specs + fixtures.ts (mocked TMDB)
-docs/                   Local-AI policy, Taste Memory, visual redesign spec
+tests/deno/             native Deno tests (pure logic; run with `npm run test:deno`)
+docs/                   Local-AI policy, Taste Memory, visual redesign spec, design audit,
+                        UI-framework evaluation, device/engine test matrix
+design.md               portable design system and anti-slop rules
 ```
 
 When you add, move, or change the purpose of a file listed in the README's Architecture section, update that section in the same change.
@@ -127,6 +140,10 @@ Full policy: `docs/Moodsift-Local-AI-Engine-Policy.md`. Key invariants:
 - Tests build with a dummy TMDB key and **mock every TMDB response** (`tests/fixtures.ts`: `mockTmdb`, `mockSearchResults`, `openSettings`). Never hit the live API from tests.
 - A second build with **no** key covers the "no key → no request, static sample visual" case (port 4322).
 - New UI needs: a flow/regression test where behaviour changes, and an axe scan for new Settings sections / card types / design styles / search types.
+- Playwright projects: `chromium-desktop`, `chromium-mobile`, `chromium-tablet`, `chromium-small`, `chromium-landscape`, `webkit-desktop`, `webkit-mobile`, `firefox-desktop`, `firefox-mobile`. `npm test` runs only the two Chromium projects; use `test:devices`, `test:engines` or `test:matrix` for the rest.
+- Input synthesis that needs CDP (`newCDPSession`) is Chromium-only. Skip it explicitly on other engines with a reason; do not let it pass silently. Firefox does not support `isMobile` contexts.
+- Native Deno tests live in `tests/deno/` and use `Deno.test` + `jsr:@std/assert`. That directory is excluded from `tsconfig.json`; `deno task test` type-checks it. Add a Deno test for new pure logic (codec, policy, parser, scoring) instead of a browser test that only needs Node.
+- All test runners are pinned to at most 3 workers. Do not raise it.
 - `APP_VERSION` in `src/lib/app-version.ts` must equal `package.json` `version` (a test fails on drift). Bump both together.
 - Visual snapshots are intentionally not committed (`tests/**/*-snapshots/` is gitignored).
 
@@ -142,9 +159,10 @@ Full policy: `docs/Moodsift-Local-AI-Engine-Policy.md`. Key invariants:
 - `src/data/ai-manifest.json` now contains real generated sizes/SHA-256 values for every pinned repo/dtype. Regenerate it with `npm run ai:manifest` whenever a pin or required file changes; `npm run ai:manifest:check` is the release gate. Never invent or hand-edit hashes.
 - `/models/` has no explicit Cloudflare edge-cache layer. Successful pinned responses, including `206` Range responses, carry a one-year immutable `Cache-Control` policy; errors are `no-store`. Add an R2/Cache API layer separately if repeat-download cost becomes a problem.
 - `run_worker_first` is `true` so the Worker applies COOP/COEP and CSP headers to assets, and so `/models/` cannot be shadowed by a future `dist/models/` file. Do not change it back without re-checking those headers in a real Wrangler run.
-- **`@types/node` is 26.x but CI runs Node 22.** Consider pinning the types to match the runtime in a separate change (needs a lockfile update).
+- **`@types/node` 26.6.6 and CI Node 26** now match; keep them in step when bumping either.
 - Full CSP is still Report-Only (see above).
-- The Playwright suites pass locally under Deno's Node compatibility, but real model downloads/inference and the deployed Worker have not been verified in every environment; confirm in CI and production.
+- Real model downloads/inference and the deployed Worker have not been verified in every environment; confirm in CI and production. The Playwright matrix runs locally against a production build with mocked TMDB, not against the live API.
+- **Browser binaries are version-bound.** `@playwright/test` 1.65 uses Chromium 158 / Firefox 159 / WebKit 27.2; after a Playwright bump run `npx playwright install chromium firefox webkit` (or the matching `test:install`) or every project fails at launch, not at an assertion.
 - Keep docs in sync: when behaviour changes, update `README.md` (Architecture section included), `PRIVACY.md`, `SECURITY.md` and `CHANGELOG.md` in the same change.
 
 ## Working in this repo without a local clone

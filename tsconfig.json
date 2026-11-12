@@ -17,5 +17,8 @@
     "exactOptionalPropertyTypes": false,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src", "worker", "tests", "vite.config.ts", "playwright.config.ts"]
+  "include": ["src", "worker", "tests", "vite.config.ts", "playwright.config.ts"],
+  // Native Deno tests use jsr:/npm: specifiers and explicit .ts extensions;
+  // `deno task test` type-checks them. tsc owns the browser/Node sources.
+  "exclude": ["tests/deno"]
 }

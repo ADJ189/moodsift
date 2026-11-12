@@ -1,0 +1,19 @@
+{
+  "$schema": "https://deno.land/x/deno/cli/schemas/config-file.v1.json",
+  "unstable": ["sloppy-imports"],
+  "imports": {
+    "lz-string": "npm:lz-string@1.5.0"
+  },
+  "tasks": {
+    "dev": "deno run -A npm:vite@8.3.8/vite",
+    "check": "deno run -A npm:typescript@7.0.2/tsc --noEmit",
+    "lint": "deno run -A npm:oxlint@1.93.0/oxlint",
+    "build": "deno task check && deno run -A npm:vite@8.3.8/vite build",
+    "test": "DENO_DIR=.deno_cache deno test -A --unstable-sloppy-imports tests/deno",
+    "test:e2e": "deno run -A npm:@playwright/test@1.65.0/playwright test --workers=3",
+    "test:e2e:fast": "deno run -A npm:@playwright/test@1.65.0/playwright test --workers=3 --project=chromium-desktop --project=chromium-mobile",
+    "test:engines": "deno run -A npm:@playwright/test@1.65.0/playwright test --workers=3 --project=webkit-desktop --project=webkit-mobile --project=firefox-desktop --project=firefox-mobile",
+    "test:devices": "deno run -A npm:@playwright/test@1.65.0/playwright test --workers=3 --project=chromium-tablet --project=chromium-small --project=chromium-landscape --project=webkit-mobile --project=firefox-mobile",
+    "ai:manifest:check": "deno run -A npm:node@26.13.0 scripts/generate-ai-manifest.mjs --check"
+  }
+}
