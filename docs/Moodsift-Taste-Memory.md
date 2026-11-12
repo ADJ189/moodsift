@@ -1,6 +1,11 @@
-# Moodsift taste memory — storage and controls (v1.13.5)
+# Moodsift taste memory — storage and controls (v1.13.5; current in v1.14.0)
 
 Ratings and the watchlist live **only in this browser**. Nothing is uploaded, and no AI model (local or cloud) receives the stored profile.
+
+The storage format and controls described here are unchanged in v1.14.0. The
+profile codec (encode → decode round-trip, corruption, and the "set aside,
+never delete" rule) is now also covered by native Deno tests in
+`tests/deno/profile-codec.test.ts`, alongside the browser storage tests.
 
 ## Storage format
 
