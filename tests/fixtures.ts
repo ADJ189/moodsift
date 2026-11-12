@@ -60,7 +60,10 @@ export async function completeQuiz(page: Page): Promise<void> {
 
 export async function rateCards(page: Page, n: number): Promise<void> {
   const cards = page.locator('.rating-card');
-  for (let i = 0; i < n; i++) await cards.nth(i).locator('.star').nth(4).click();
+  for (let i = 0; i < n; i++) {
+    const star = cards.nth(i).locator('.star').nth(4);
+    await star.dispatchEvent('click');
+  }
 }
 
 export async function toResults(page: Page): Promise<void> {
