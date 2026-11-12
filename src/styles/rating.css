@@ -24,6 +24,14 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
+}
+
+@media (max-width: 360px) {
+  .rating-grid {
+    grid-template-columns: repeat(auto-fill, minmax(calc(120px * var(--text-scale)), 1fr));
+    gap: 10px;
+  }
 }
 
 .rating-poster {

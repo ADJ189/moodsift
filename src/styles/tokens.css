@@ -1,9 +1,13 @@
 :root {
   /* Fonts — Sora for display (a clean geometric grotesque that reads as
      professional/product-grade rather than the previous Bricolage
-     Grotesque's quirkier, more editorial character), Inter for body copy. */
+     Grotesque's quirkier, more editorial character), Manrope for body copy.
+     Manrope replaces Inter as the default: Inter is the single most common
+     "this was generated" body face, while Manrope keeps the same neutrality
+     with a little more character. Inter remains available in the optional
+     presets below. */
   --font-display: 'Sora Variable', 'Sora', ui-sans-serif, system-ui, sans-serif;
-  --font-body: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Manrope Variable', 'Manrope', ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
   --heading-weight: 600;
   --heading-tracking: -0.01em;
@@ -76,7 +80,7 @@
   /* Layout */
   --radius-sm: 8px;
   --radius-md: 14px;
-  --radius-lg: 24px;
+  --radius-lg: 20px;
   --radius-pill: 999px;
   --content-width: 1120px;
   --header-height: 60px;
