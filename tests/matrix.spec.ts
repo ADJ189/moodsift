@@ -52,6 +52,19 @@ test.describe('environment matrix', () => {
     await expectNoOverflow(page, 'landing');
   });
 
+  test('screen padding at 320px viewport uses the narrow override', async ({ page, mock }) => {
+    void mock;
+    await page.setViewportSize({ width: 320, height: 568 });
+    await page.goto('/');
+    const padding = await page.evaluate(() => {
+      const screen = document.querySelector('.screen');
+      if (!screen) return null;
+      const s = getComputedStyle(screen);
+      return { top: s.paddingTop, right: s.paddingRight, bottom: s.paddingBottom, left: s.paddingLeft };
+    });
+    expect(padding).toEqual({ top: '16px', right: '12px', bottom: '16px', left: '12px' });
+  });
+
   test('quiz and results render inside every viewport', async ({ page, mock }) => {
     void mock;
     await page.goto('/');
@@ -129,6 +142,8 @@ test.describe('environment matrix', () => {
     await page.addInitScript(() => localStorage.setItem('cinematch-appearance:v1', JSON.stringify({ version: 1, mode: 'system' })));
     await page.goto('/');
     await expect.poll(() => page.evaluate(() => document.documentElement.getAttribute('data-theme')), { timeout: 5_000 }).toBe('light');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    expect(await page.evaluate(() => document.documentElement.getAttribute('data-theme'))).toBe('light');
   });
 
   test('a blocked localStorage never blanks the app', async ({ page, mock }) => {

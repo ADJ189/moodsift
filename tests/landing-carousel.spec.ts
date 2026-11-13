@@ -435,14 +435,25 @@ test.describe('landing gallery — touch', () => {
   test('tapping a side poster selects it; tapping Explore opens the title', async ({ page }) => {
     const side = page.locator('.lc-slide.is-near[data-index="1"]');
     await side.scrollIntoViewIfNeeded();
-    await page.waitForTimeout(400);
-    const sb = await side.boundingBox();
-    const vp = page.viewportSize() ?? { width: 800, height: 600 };
-    if (sb && sb.y > 0 && sb.y + sb.height / 2 < vp.height) {
-      await page.touchscreen.tap(sb.x + sb.width * 0.75, sb.y + sb.height / 2);
-    } else {
-      await side.dispatchEvent('click');
-    }
+    await page.waitForTimeout(200);
+    const point = await side.evaluate((el) => {
+      el.scrollIntoView({ block: 'center', inline: 'nearest' });
+      const rect = el.getBoundingClientRect();
+      const candidates = [
+        { x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.5 },
+        { x: rect.left + rect.width * 0.5, y: rect.top + rect.height * 0.5 },
+        { x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.5 },
+      ];
+      for (const pt of candidates) {
+        if (pt.x > 0 && pt.x < window.innerWidth && pt.y > 0 && pt.y < window.innerHeight) {
+          const hit = document.elementFromPoint(pt.x, pt.y);
+          if (hit && el.contains(hit)) return pt;
+        }
+      }
+      return null;
+    });
+    expect(point, 'side poster must have a visible, hit-testable tap point in the viewport').not.toBeNull();
+    await page.touchscreen.tap(point!.x, point!.y);
     await expect(page.locator('.lc-slide.is-active')).toHaveAttribute('data-index', '1');
     await page.getByRole('button', { name: /^Explore title:/ }).tap();
     await expect(page.locator('.search-screen')).toBeVisible();

@@ -62,7 +62,7 @@ export async function rateCards(page: Page, n: number): Promise<void> {
   const cards = page.locator('.rating-card');
   for (let i = 0; i < n; i++) {
     const star = cards.nth(i).locator('.star').nth(4);
-    await star.dispatchEvent('click');
+    await star.click();
   }
 }
 
