@@ -79,7 +79,7 @@ generation, and ineligible candidates are never attempted.
 
 ## Results from this checkout (v1.14.0)
 
-Environment: Windows, Node 26.13.0, npm 12.2.2, Deno 2.9.8, Playwright 1.65.0.
+Environment: Windows, Node 26.13.0 (canonical for CI and Cloudflare Worker deploy), npm 12.2.2, Deno 2.9.8 (optional task & pure-logic test runner), Playwright 1.65.0.
 
 | Run | Command | Result |
 |---|---|---|
