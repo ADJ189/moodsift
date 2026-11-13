@@ -137,11 +137,15 @@ v1.14.0 adds no runtime behaviour to the AI engine. It adds the test coverage
 that had been asserted but not exercised as a matrix:
 
 - `tests/local-ai-matrix.spec.ts` — 3 model families × 2 backends × 4 modes ×
-  7 device profiles, all with injected runtime/fetch/cache fakes. It checks
-  policy ordering, that an ineligible candidate is never attempted, WebGPU
-  eligibility only after a mocked `requestAdapter()`, constrained-device
-  limits, and that a generation after a successful load never re-downloads a
-  model. No model is downloaded and no real inference runs.
+  7 device profiles, all with injected runtime/fetch/cache fakes and device detection
+  exercised via `detectDevice()` with mocked `requestAdapter()`. It checks
+  policy ordering and complete fallback attempt sequences under candidate failures,
+  that runtime pipeline options (device backend, dtype, revision) match the candidate
+  spec, that an ineligible candidate is never attempted, WebGPU eligibility only after
+  `requestAdapter()` with `shader-f16` (including absent adapters, adapters without
+  `shader-f16`, and adapter errors), constrained-device limits, and that a generation
+  after a successful load never re-downloads a model. No model is downloaded and no
+  real inference runs.
 - `tests/deno/ai-policy.test.ts` — the same policy decisions as pure logic,
   native to Deno, with no browser.
 - `tests/model-proxy.spec.ts` and `tests/deno/model-proxy.test.ts` — the relay
