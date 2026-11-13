@@ -14,6 +14,6 @@
     "test:e2e:fast": "deno run -A npm:@playwright/test@1.65.0/playwright test --workers=3 --project=chromium-desktop --project=chromium-mobile",
     "test:engines": "deno run -A npm:@playwright/test@1.65.0/playwright test --workers=3 --project=webkit-desktop --project=webkit-mobile --project=firefox-desktop --project=firefox-mobile",
     "test:devices": "deno run -A npm:@playwright/test@1.65.0/playwright test --workers=3 --project=chromium-tablet --project=chromium-small --project=chromium-landscape --project=webkit-mobile --project=firefox-mobile",
-    "ai:manifest:check": "deno run -A npm:node@26.13.0 scripts/generate-ai-manifest.mjs --check"
+    "ai:manifest:check": "node scripts/generate-ai-manifest.mjs --check"
   }
 }

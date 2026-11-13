@@ -13,9 +13,9 @@ performed; the evaluation is in `docs/ui-framework-evaluation.md`.
 
 ### Added
 
-- **Native Deno tests** (`tests/deno/`, 39 tests): media keys, deterministic
+- **Native Deno tests** (`tests/deno/`, 45 tests): media keys, deterministic
   ranking and hard filters, the profile codec, SHA-256 vectors, IMDb and
-  Letterboxd importers, AI candidate policy across 3 families × 2 backends ×
+  Letterboxd importers, AI candidate policy and local AI engine matrix across 3 families × 2 backends ×
   4 modes × 7 device profiles, and the `/models/` relay's path/redirect rules.
   They use `Deno.test` and `jsr:@std/assert`, need no browser, and never
   download a model. `deno.json` adds `dev`, `check`, `lint`, `build`, `test`,
@@ -92,11 +92,11 @@ performed; the evaluation is in `docs/ui-framework-evaluation.md`.
 
 ### Verification
 
-- **Fast gate (`npm test`)**: 451 passed, 10 skipped, 0 failed across Chromium desktop and mobile (3.9m at 3 workers).
+- **Fast gate (`npm test`)**: 453 passed, 10 skipped, 0 failed across Chromium desktop and mobile (4.2m at 3 workers).
 - **Engine matrix (`npm run test:engines`)**: 892 passed, 20 skipped, 0 failed across WebKit desktop, WebKit mobile, Firefox desktop, and Firefox mobile (16.7m at 3 workers).
 - **Device & matrix suite**: 81 passed, 3 skipped, 0 failed across `chromium-small` (320px) and `chromium-landscape` (Pixel 7 landscape).
 - **Local AI matrix & integrity**: 40 passed, 0 failed across `local-ai-matrix.spec.ts`, `local-ai-engine.spec.ts`, and `local-ai-integrity.spec.ts` with simulated backends and zero real model downloads.
-- **Native Deno suite (`deno task test`)**: 39 passed, 0 failed in 378ms covering pure logic (scoring engine, media keys, sha256, codecs, importers, AI candidate policy, and model proxy).
+- **Native Deno suite (`deno task test`)**: 45 passed, 0 failed in 581ms covering pure logic (scoring engine, media keys, sha256, codecs, importers, AI candidate policy, model proxy, and local AI matrix).
 - **Deno Playwright execution (`deno task test:e2e`)**: Verified functional; runs all specs cleanly under Deno runtime.
 - **Static checks & audits**:
   - `npm run typecheck` & `deno task check`: 0 errors.

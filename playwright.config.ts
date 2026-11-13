@@ -34,7 +34,7 @@ export default defineConfig({
     { name: 'chromium-desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } } },
     { name: 'chromium-mobile', use: { ...devices['Pixel 7'] }, testIgnore: /visual\.spec\.ts/ },
     // Device matrix (npm run test:devices): layout extremes, tablets, landscape.
-    { name: 'chromium-tablet', use: { ...devices['iPad Mini'] }, testIgnore: /visual\.spec\.ts/ },
+    { name: 'chromium-tablet', use: { ...devices['iPad Mini'], defaultBrowserType: 'chromium' }, testIgnore: /visual\.spec\.ts/ },
     { name: 'chromium-small', use: { ...devices['Desktop Chrome'], viewport: { width: 320, height: 640 }, hasTouch: true }, testIgnore: /visual\.spec\.ts/ },
     { name: 'chromium-landscape', use: { ...devices['Pixel 7 landscape'] }, testIgnore: /visual\.spec\.ts/ },
     // Engine matrix (npm run test:engines): the renderers users actually have.
