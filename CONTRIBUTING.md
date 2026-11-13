@@ -30,6 +30,10 @@ deliberate).
   PRIVACY.md). No new analytics, telemetry, or third-party call that
   isn't one of the documented Connectors in the README. If your change needs one, say so
   explicitly in the PR description — see PRIVACY.md.
+- **Node 26 is canonical.** GitHub Actions CI workflows and Cloudflare Worker
+  deployments via Wrangler use Node.js. Deno is an optional developer preference
+  for running tasks and pure-logic tests (`tests/deno/`), but CI and release
+  artifacts are driven by Node.
 
 ## Local setup
 

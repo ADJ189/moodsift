@@ -113,10 +113,12 @@ Vanilla TypeScript + Vite. No framework. The UI is a handful of screens and a sm
 | **Data** | [TMDB](https://www.themoviedb.org/documentation/api) (required), [OMDb](https://www.omdbapi.com/) (optional) |
 | **On-device AI** | [`@huggingface/transformers`](https://huggingface.co/docs/transformers.js) v4, model files via the same-origin `/models/` relay, Web Worker, WebGPU with a WASM fallback |
 | **Tests** | Playwright + axe across Chromium, WebKit and Firefox, desktop and mobile; native Deno tests for pure logic |
-| **Runtime** | Node 26 (CI) or Deno 2.9; at most 3 browser workers everywhere |
-| **Deploy target** | Cloudflare Workers (static assets + a small API Worker) |
+| **Runtime** | Node 26 (canonical runtime for CI, Worker build/deploy, and Playwright matrix); Deno 2.9+ (optional developer preference for tasks and native pure-logic tests); at most 3 browser workers everywhere |
+| **Deploy target** | Cloudflare Workers (static assets + a small API Worker; built and deployed via Node/npm and Wrangler) |
 
 ## Getting started
+
+Node.js (v26) is the official runtime used by the project, GitHub Actions CI, and Cloudflare Worker tooling. Deno support is available as an optional developer preference for running tasks and native pure-logic tests.
 
 The live deployment already has `VITE_TMDB_TOKEN` set as a Cloudflare **project variable**, so production builds need nothing from you — this section is for running the app locally.
 
@@ -211,10 +213,10 @@ build, dependency audit and Lighthouse on Node 26.
 ## Deployment
 
 ```bash
-npm run deploy   # builds, then runs `wrangler deploy`
+npm run deploy   # builds, then runs `wrangler deploy` via Node/npm
 ```
 
-Moodsift is a genuine Cloudflare Worker (`wrangler.jsonc` declares `main: worker/index.ts`), not a Pages project — it serves the built `dist/` folder via Workers Static Assets and handles `/models/` plus the optional `/api/recommend`. `run_worker_first: true` keeps the Worker in front of static assets so `/models/` cannot be shadowed by a file in `dist/` and the COOP/COEP/CSP headers are actually applied to HTML and asset responses. Live at **https://moodsift.adj189.workers.dev/**.
+Moodsift deploys as a genuine Cloudflare Worker (`wrangler.jsonc` declares `main: worker/index.ts`), built and deployed with Node/npm and Wrangler (Node 26). Deno is not used in production deployment or CI workflows. The Worker serves the built `dist/` folder via Workers Static Assets and handles `/models/` plus the optional `/api/recommend`. `run_worker_first: true` keeps the Worker in front of static assets so `/models/` cannot be shadowed by a file in `dist/` and the COOP/COEP/CSP headers are actually applied to HTML and asset responses. Live at **https://moodsift.adj189.workers.dev/**.
 
 Set `VITE_TMDB_TOKEN` (and optionally `VITE_OMDB_KEY`) as **project variables** in the Cloudflare dashboard so they're present when `npm run build` runs; `.env` is gitignored and never committed.
 

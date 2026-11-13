@@ -7,8 +7,8 @@ Instructions for AI coding agents (Claude, Copilot, Cursor, Codex, Gemini, etc.)
 Moodsift (v1.14.0) is a framework-free movie/TV recommendation web app. A 7-question quiz plus a few ratings feeds a **deterministic client-side scoring engine** over live TMDB data. Optional on-device AI rewords the explanation text only. No accounts, no analytics, no server-side user data.
 
 - **Live:** https://moodsift.adj189.workers.dev/
-- **Stack:** TypeScript (`strict`) + Vite 8, no UI framework. Cloudflare Worker (Workers Static Assets). Tests: Playwright + axe, plus native Deno tests. Lint: oxlint. Node 26 in CI; Deno 2.9 works as an alternative runtime.
-- **Deploy target:** a real Cloudflare **Worker** (`wrangler.jsonc`, `main: worker/index.ts`), *not* Pages.
+- **Stack:** TypeScript (`strict`) + Vite 8, no UI framework. Cloudflare Worker (Workers Static Assets). Tests: Playwright + axe, plus native Deno tests. Lint: oxlint. Canonical runtime is Node 26 for GitHub Actions CI, build pipelines, and Cloudflare Worker development/deployment via Wrangler. Deno 2.9+ is supported as an optional user/developer preference for running local tasks and native pure-logic tests (`tests/deno/`).
+- **Deploy target:** a real Cloudflare **Worker** (`wrangler.jsonc`, `main: worker/index.ts`), *not* Pages; built and deployed using Node/Wrangler.
 
 ## Commands
 
