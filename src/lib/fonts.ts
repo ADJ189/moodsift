@@ -1,7 +1,7 @@
 // src/lib/fonts.ts
 //
 // Curated, self-hosted font presets (Fontsource). The default pairing
-// (Sora + Inter) is imported statically in main.ts so first paint has no
+// (Sora + Manrope) is imported statically in main.ts so first paint has no
 // third-party font request; every other family is loaded on demand, only
 // when someone actually selects that preset. "System" needs nothing.
 //
@@ -37,9 +37,9 @@ export const FONT_PRESETS: FontPreset[] = [
   {
     id: 'default',
     label: 'Moodsift Default',
-    blurb: 'Sora + Inter — geometric and modern.',
+    blurb: 'Sora + Manrope — geometric headings, warm neutral body.',
     display: `'Sora Variable', ${SYS}`,
-    body: `'Inter Variable', ${SYS}`,
+    body: `'Manrope Variable', ${SYS}`,
     mono: MONO,
     headingWeight: 600,
     load: () => [], // statically imported in main.ts

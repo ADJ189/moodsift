@@ -27,6 +27,12 @@ p {
   padding: calc(clamp(20px, 5vw, 64px) * var(--density));
 }
 
+@media (max-width: 360px) {
+  .screen {
+    padding: calc(16px * var(--density, 1)) calc(12px * var(--density, 1));
+  }
+}
+
 .btn-primary {
   color: var(--on-accent);
 }

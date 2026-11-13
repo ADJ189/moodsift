@@ -1,6 +1,6 @@
 # Moodsift Local AI Engine Policy
 
-**Applies to:** Moodsift v1.13.8 (originally written for the UI 1.10.2 local-AI optimizer patch; the v1.13.5 and v1.13.8 sections below extend it)  
+**Applies to:** Moodsift v1.14.0 (originally written for the UI 1.10.2 local-AI optimizer patch; the v1.13.5, v1.13.8 and v1.14.0 sections below extend it)  
 **Cloudflare Workers AI:** intentionally deferred; the existing `/api/recommend` endpoint remains unchanged and is not called by the frontend.
 
 ## Product decision
@@ -133,6 +133,27 @@ This repository change does not implement step 4. The existing Cloudflare endpoi
 
 ## Source areas changed
 
+v1.14.0 adds no runtime behaviour to the AI engine. It adds the test coverage
+that had been asserted but not exercised as a matrix:
+
+- `tests/local-ai-matrix.spec.ts` — 3 model families × 2 backends × 4 modes ×
+  7 device profiles, all with injected runtime/fetch/cache fakes and device detection
+  exercised via `detectDevice()` with mocked `requestAdapter()`. It checks
+  policy ordering and complete fallback attempt sequences under candidate failures,
+  that runtime pipeline options (device backend, dtype, revision) match the candidate
+  spec, that an ineligible candidate is never attempted, WebGPU eligibility only after
+  `requestAdapter()` with `shader-f16` (including absent adapters, adapters without
+  `shader-f16`, and adapter errors), constrained-device limits, and that a generation
+  after a successful load never re-downloads a model. No model is downloaded and no
+  real inference runs.
+- `tests/deno/ai-policy.test.ts` — the same policy decisions as pure logic,
+  native to Deno, with no browser.
+- `tests/model-proxy.spec.ts` and `tests/deno/model-proxy.test.ts` — the relay
+  still rejects `main`, branches, tags, shortened SHAs, non-allow-listed
+  repos, traversal and non-GET/HEAD/Range methods.
+
+### Source areas changed
+
 v1.13.8 adds: `worker/model-proxy.ts` (same-origin relay), `worker/dev-proxy.ts` (Vite dev/preview wiring), the `/models/` route in `worker/index.ts`, the `modelHost` / `env.remoteHost` / integrity `remoteHost` wiring in `src/lib/ai-engine.ts` and `src/lib/ai-worker.ts`, real generated values in `src/data/ai-manifest.json`, and `pinModelRequestUrl()` plus revision-normalising `trackedFetch` in `src/lib/ai-integrity.ts`.
 
 v1.13.5 adds: `src/lib/ai-engine.ts` (decision logic with injected environment), `src/lib/ai-diagnostics.ts`, `src/lib/ai-diagnostics-ui.ts`, `src/lib/ai-integrity.ts`, `src/lib/sha256.ts`, `src/data/ai-manifest.json`, `scripts/generate-ai-manifest.mjs`; `src/lib/ai-worker.ts` is now only the wiring. Earlier areas:
@@ -147,4 +168,17 @@ v1.13.5 adds: `src/lib/ai-engine.ts` (decision logic with injected environment),
 
 ## Verification status
 
-See the v1.13.8 entry in `CHANGELOG.md` for exactly what was run and what was not. In short: the relay is covered by deterministic Deno and Playwright tests, a real local Wrangler Worker returned a real pinned `config.json` through `/models/`, live model bytes were streamed through both Vite dev and Vite preview, and the unmodified Transformers.js 4.3.1 runtime was traced for all three required candidates with zero `resolve/main/` requests. No full model download, real-device inference or production deployment was performed. Do not publish any model/backend as "tested" from those results alone — the release gates in `nextupdate.md` §6 (real-device diagnostics for every advertised model/backend) still apply.
+See the v1.14.0 entry in `CHANGELOG.md` for exactly what was run and what was
+not. In short: the relay is covered by deterministic Deno and Playwright
+tests, a local Wrangler Worker (`wrangler 4.160.1`) returned a real pinned
+`config.json` through `/models/` (200), rejected `main` (404) and `POST`
+(405), honoured `Range` with `206` and a one-year immutable cache, and
+`/api/recommend` returned `503` without the AI binding. Deno tests in
+`tests/deno/` cover the policy, engine and relay rules natively; the browser
+AI matrix runs 3 families × 2 backends × 4 modes × 7 device profiles with
+fakes.
+
+No full model download, real-device inference or production deployment was
+performed. Do not publish any model/backend as "tested" from those results
+alone — the release gates in `nextupdate.md` §6 (real-device diagnostics for
+every advertised model/backend) still apply.

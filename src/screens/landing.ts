@@ -124,7 +124,6 @@ export function renderLanding(root: HTMLElement): () => void {
     canvas,
     el('div', { class: 'landing-grid' }, [
       el('div', { class: 'landing-content' }, [
-        el('span', { class: 'eyebrow reveal', style: '--reveal: 0' }, ['No account \u00b7 your profile stays on this device']),
         el('h1', { class: 'landing-title reveal', style: '--reveal: 1', tabindex: '-1' }, ['Find something you\u2019ll actually like']),
         el('p', { class: 'landing-sub reveal', style: '--reveal: 2' }, [
           'Seven quick questions, a few titles you already know, and a live pull from thousands of movies and shows \u2014 matched to you, not to what everyone else is watching.',
@@ -137,7 +136,7 @@ export function renderLanding(root: HTMLElement): () => void {
           ]),
           el('button', { class: 'btn btn-quiet', type: 'button', onclick: () => store.setScreen('search') }, ['Search a title you love']),
         ]),
-        el('p', { class: 'landing-trust reveal', style: '--reveal: 4' }, ['7 questions \u00b7 about a minute \u00b7 no account required']),
+        el('p', { class: 'landing-trust reveal', style: '--reveal: 4' }, ['No account \u00b7 your profile stays on this device \u00b7 about a minute']),
         ...(vibeCard ? [vibeCard] : []),
         ...(warning ? [warning] : []),
       ]),

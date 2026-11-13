@@ -708,9 +708,25 @@
   }
 }
 
+@media (max-width: 360px) {
+  .results-grid {
+    gap: 8px;
+  }
+  .result-body {
+    padding: 8px 6px;
+  }
+  .star-row {
+    gap: 1px;
+  }
+}
+
 /* Touch targets: 44px minimum for the small controls. */
 @media (pointer: coarse) {
   .star {
+    min-width: 28px;
+    min-height: 36px;
+  }
+  .modal-card .star {
     min-width: 36px;
     min-height: 36px;
   }

@@ -107,7 +107,7 @@ export const DEFAULT_PREFERENCES: AppearancePreferences = {
   contrast: 'standard',
   transparency: 'standard',
   motion: 'system',
-  particles: 'balanced',
+  particles: 'subtle',
   cardType: 'interactive',
   designStyle: 'cinematic',
   searchType: 'grouped',

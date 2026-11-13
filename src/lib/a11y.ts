@@ -15,9 +15,9 @@ const FOCUSABLE =
  */
 export function trapFocus(
   container: HTMLElement,
-  opts: { initialFocus?: HTMLElement; onEscape: () => void; also?: () => (HTMLElement | null)[] }
+  opts: { initialFocus?: HTMLElement; onEscape: () => void; also?: () => (HTMLElement | null)[]; restoreFocus?: HTMLElement | null }
 ): () => void {
-  const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const opener = opts.restoreFocus ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
 
   const regions = () => [container, ...(opts.also?.() ?? [])].filter((r): r is HTMLElement => !!r && document.contains(r));
   const isVisible = (n: HTMLElement) => n.offsetParent !== null || n === document.activeElement || getComputedStyle(n).position === 'fixed';

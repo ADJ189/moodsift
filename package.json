@@ -1,6 +1,6 @@
 {
   "name": "moodsift",
-  "version": "1.13.8",
+  "version": "1.14.0",
   "private": true,
   "type": "module",
   "description": "Moodsift \u2014 a fast, framework-free movie & TV recommendation engine.",
@@ -16,6 +16,10 @@
     "worker:dev": "wrangler dev",
     "deploy": "npm run build && wrangler deploy",
     "test": "playwright test --project=chromium-desktop --project=chromium-mobile",
+    "test:engines": "playwright test --workers=3 --project=webkit-desktop --project=webkit-mobile --project=firefox-desktop --project=firefox-mobile",
+    "test:devices": "playwright test --workers=3 --project=chromium-tablet --project=chromium-small --project=chromium-landscape --project=webkit-mobile --project=firefox-mobile",
+    "test:matrix": "playwright test --workers=3",
+    "test:deno": "deno task test",
     "test:visual": "VISUAL=1 playwright test --project=chromium-desktop visual.spec.ts",
     "test:install": "playwright install --with-deps chromium",
     "ai:manifest": "node scripts/generate-ai-manifest.mjs",
@@ -23,17 +27,19 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
-    "@playwright/test": "1.64.1",
-    "@types/node": "26.6.5",
-    "oxlint": "^1.91.0",
+    "@playwright/test": "1.65.0",
+    "@types/node": "26.6.6",
+    "oxlint": "^1.93.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
     "wrangler": "^4.151.3"
     "vite": "^8.3.5",
     "wrangler": "4.151.3"
+    "vite": "^8.3.8",
+    "wrangler": "4.160.1"
   },
   "overrides": {
-    "undici": "7.30.1",
+    "undici": "7.30.2",
     "sharp": "0.35.5"
   },
   "dependencies": {
