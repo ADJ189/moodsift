@@ -258,13 +258,25 @@ test.describe('landing gallery — navigation', () => {
     // (the active card covers the inner part of a neighbour, so aim at its visible outer edge)
     const side = page.locator('.lc-slide.is-near[data-index="1"]');
     await side.scrollIntoViewIfNeeded();
-    await page.waitForTimeout(600); // let the previous change finish animating before measuring
-    const sb = (await side.boundingBox())!;
-    if (sb && sb.y > 0 && sb.y + sb.height / 2 < (page.viewportSize()?.height ?? 800)) {
-      await page.mouse.click(sb.x + sb.width * 0.85, sb.y + sb.height / 2);
-    } else {
-      await side.dispatchEvent('click');
-    }
+    await page.waitForTimeout(400); // let the previous change finish animating before measuring
+    const point = await side.evaluate((el) => {
+      el.scrollIntoView({ block: 'center', inline: 'nearest' });
+      const rect = el.getBoundingClientRect();
+      const candidates = [
+        { x: rect.left + rect.width * 0.8, y: rect.top + rect.height * 0.5 },
+        { x: rect.left + rect.width * 0.65, y: rect.top + rect.height * 0.5 },
+        { x: rect.left + rect.width * 0.5, y: rect.top + rect.height * 0.5 },
+      ];
+      for (const pt of candidates) {
+        if (pt.x > 0 && pt.x < window.innerWidth && pt.y > 0 && pt.y < window.innerHeight) {
+          const hit = document.elementFromPoint(pt.x, pt.y);
+          if (hit && el.contains(hit)) return pt;
+        }
+      }
+      return null;
+    });
+    expect(point, 'side card must have a visible, hit-testable click point in the viewport').not.toBeNull();
+    await page.mouse.click(point!.x, point!.y);
     await expect(page.locator('.lc-slide.is-active')).toHaveAttribute('data-index', '1');
     await expect(page.locator('.lc-slide.is-far').first()).toHaveCSS('pointer-events', 'none');
   });

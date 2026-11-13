@@ -30,6 +30,7 @@ function harness(resources: Profile) {
   const posts: OutMsg[] = [];
   const pipeline: string[] = [];
   const fetched: string[] = [];
+  const allRequests: string[] = [];
   const env = {
     backends: { onnx: { wasm: { wasmPaths: { mjs: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.26.0-dev.1/dist/ort-wasm-simd-threaded.asyncify.mjs', wasm: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.26.0-dev.1/dist/ort-wasm-simd-threaded.asyncify.wasm' } } } },
     cacheKey: 'transformers-cache',
@@ -37,6 +38,7 @@ function harness(resources: Profile) {
 
   const baseFetch: EngineDeps['baseFetch'] = async (input) => {
     const url = String(input);
+    allRequests.push(url);
     if (url.includes('/resolve/')) {
       fetched.push(url);
       return new Response(new ReadableStream({ start(c) { c.enqueue(bytes); c.close(); } }), { status: 200, headers: { 'content-length': String(bytes.length) } });
@@ -71,6 +73,7 @@ function harness(resources: Profile) {
   return {
     pipeline,
     fetched,
+    allRequests,
     async run(msg: InMsg): Promise<OutMsg> {
       posts.length = 0;
       await engine.handle(msg);
@@ -153,10 +156,10 @@ test.describe('AI engine brute-force matrix', () => {
     const h = harness(profiles['mid webgpu']!);
     await h.run(load('balanced'));
     const pipelines = h.pipeline.length;
-    const wasmFetches = h.fetched.filter((u) => u.includes('ort-wasm')).length;
+    const requestCount = h.allRequests.length;
     const out = await h.run({ type: 'generate', id: 7, item: { title: 'Heat', year: 1995, reasons: ['Crime thriller'] }, quizSummary: 'tense' });
     expect(out).toMatchObject({ type: 'result', id: 7 });
     expect(h.pipeline.length).toBe(pipelines);
-    expect(h.fetched.filter((u) => u.includes('ort-wasm')).length).toBe(wasmFetches);
+    expect(h.allRequests.length).toBe(requestCount);
   });
 });

@@ -163,14 +163,15 @@ test.describe('environment matrix', () => {
 
   test('an unreadable stored profile is set aside, not deleted', async ({ page, mock }) => {
     void mock;
-    await page.addInitScript(() => localStorage.setItem('cinematch.profile.v2', 'MOODPROFILE|2|lz-utf16|not-real-data'));
+    const corrupt = 'MOODPROFILE|2|lz-utf16|not-real-data';
+    await page.addInitScript((val) => localStorage.setItem('cinematch.profile.v2', val), corrupt);
     await page.goto('/');
     await expect(page.getByRole('button', { name: /find my next watch|get fresh picks/i })).toBeVisible();
     const kept = await page.evaluate(() => ({
       original: localStorage.getItem('cinematch.profile.v2'),
       setAside: localStorage.getItem('cinematch.profile.v2.unreadable'),
     }));
-    expect(kept.setAside !== null || kept.original !== null, 'unreadable data must not be destroyed').toBe(true);
+    expect(kept.setAside === corrupt || kept.original === corrupt, 'unreadable data must not be destroyed').toBe(true);
   });
 
   test('boots under a non-English locale and timezone', async ({ browser, browserName }) => {
