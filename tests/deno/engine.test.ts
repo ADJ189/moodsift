@@ -70,10 +70,12 @@ Deno.test('identical input yields identical ranking (no randomness)', () => {
 Deno.test('language preference penalises the mismatch without hiding it', () => {
   const engine = new RecommendationEngine();
   engine.processQuiz({ era: 'any', language: 'english' });
-  const [en, foreign] = engine.getResults(
+  const results = engine.getResults(
     [item({ id: 1, language: 'en' }), item({ id: 2, language: 'fr' })],
     {}
   );
+  const [en, foreign] = results;
+  assertEquals(results[0]!.id, 1);
   assertEquals(en!.score > foreign!.score, true);
   assertEquals(engine.getResults([item({ id: 2, language: 'fr' })], {}).length, 1);
 });
@@ -91,10 +93,12 @@ Deno.test('rated titles nudge affinity in the expected direction', () => {
   const engine = new RecommendationEngine();
   engine.processQuiz({ era: 'any' });
   engine.processResultRating(item({ id: 99, genres: ['comedy'], vibe: ['feelgood'] }), 5);
-  const [liked, other] = engine.getResults(
+  const results = engine.getResults(
     [item({ id: 1, genres: ['comedy'], vibe: ['feelgood'] }), item({ id: 2, genres: ['horror'], vibe: ['dark'] })],
     {}
   );
+  const [liked, other] = results;
+  assertEquals(results[0]!.id, 1);
   assertEquals(liked!.score > other!.score, true);
   assertEquals(liked!.matchedTags.includes('comedy'), true);
 });
