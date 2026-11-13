@@ -53,8 +53,10 @@
 }
 
 .app-brand span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .app-brand img {

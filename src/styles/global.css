@@ -97,12 +97,6 @@ img {
   animation: screen-in var(--dur-slow) var(--ease-smooth);
 }
 
-@media (max-width: 360px) {
-  .screen {
-    padding: 16px 12px;
-  }
-}
-
 /* Opacity only. A translateY on the full-height screen is a compositor crash
    in WebKit 27.2 (Windows): the renderer dies on the landing → quiz
    transition. The fade still gives the screen change a beat, with less
