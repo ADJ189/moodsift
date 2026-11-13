@@ -87,7 +87,7 @@ Environment: Windows, Node 26.13.0 (canonical for CI and Cloudflare Worker deplo
 | Lint | `npm run lint` | 0 findings |
 | Build | `npm run build` | Pass; 33.01 kB gzip initial JS, 26.76 kB gzip CSS |
 | Deno check/lint/build | `deno task check`, `lint`, `build` | 0 errors |
-| Deno tests | `deno task test` | **39 passed, 0 failed** |
+| Deno tests | `deno task test` | **45 passed, 0 failed** |
 | Chromium fast gate | `npm test` | **451 passed, 10 skipped, 0 failed** |
 | Engine matrix | `npm run test:engines` | **892 passed, 20 skipped, 0 failed** |
 | Device matrix targets | `chromium-small` & `chromium-landscape` | **81 passed, 3 skipped, 0 failed** |
