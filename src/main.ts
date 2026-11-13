@@ -1,7 +1,7 @@
 // Default font pairing is self-hosted and bundled (no third-party font
 // request on first paint). Other presets load on demand — see lib/fonts.ts.
 import '@fontsource-variable/sora/wght.css';
-import '@fontsource-variable/inter/wght.css';
+import '@fontsource-variable/manrope/wght.css';
 import './styles/global.css';
 import './styles/palettes.css';
 import './styles/primitives.css';
@@ -21,7 +21,6 @@ import './styles/cards.css';
 import { renderLanding } from './screens/landing';
 import { store } from './lib/store';
 import { initTheme } from './lib/theme';
-import { effectiveMotion } from './lib/appearance';
 import { initShortcuts } from './lib/command-palette';
 import { initPointerFx } from './lib/fx';
 import { renderHeader } from './lib/header';
@@ -71,20 +70,12 @@ let currentScreen: Screen | null = null;
 // itself onto the host after landing already took over.
 let navToken = 0;
 
-/** Runs a screen swap inside a View Transition where the browser supports
- * it (and motion isn't Off); otherwise just swaps. The callback must be
- * safe to run late — it re-checks the navigation token itself — and a
- * failed or skipped transition can never leave the old screen in place. */
+/** Swaps screens. View Transitions are deliberately not used: WebKit 27.2
+ * (the Playwright build, and the engine version Safari ships around it)
+ * crashes the renderer after repeated `startViewTransition` calls on this
+ * app. The per-screen fade in `global.css` gives the screen change the same
+ * beat without the crash risk, and works in every engine. */
 function swap(update: () => void) {
-  const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
-  if (typeof doc.startViewTransition === 'function' && effectiveMotion() !== 'off' && !document.hidden) {
-    try {
-      doc.startViewTransition(update);
-      return;
-    } catch {
-      /* fall through to a plain swap */
-    }
-  }
   update();
 }
 

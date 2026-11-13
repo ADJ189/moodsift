@@ -1,0 +1,49 @@
+{
+  "version": "5",
+  "specifiers": {
+    "jsr:@std/assert@1": "1.0.19",
+    "jsr:@std/internal@^1.0.12": "1.0.14"
+  },
+  "jsr": {
+    "@std/assert@1.0.19": {
+      "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
+      "dependencies": [
+        "jsr:@std/internal"
+      ]
+    },
+    "@std/internal@1.0.14": {
+      "integrity": "291516b3d4c35024d6ffbc0a9df5bf4c64116e05b50012cf846710152d2ffdf7"
+    }
+  },
+  "workspace": {
+    "dependencies": [
+      "npm:lz-string@1.5.0"
+    ],
+    "packageJson": {
+      "dependencies": [
+        "npm:@axe-core/playwright@4.14.0",
+        "npm:@fontsource-variable/bricolage-grotesque@5.3.0",
+        "npm:@fontsource-variable/dm-sans@5.3.0",
+        "npm:@fontsource-variable/fraunces@5.3.0",
+        "npm:@fontsource-variable/inter@5.3.0",
+        "npm:@fontsource-variable/manrope@5.3.0",
+        "npm:@fontsource-variable/plus-jakarta-sans@5.3.0",
+        "npm:@fontsource-variable/sora@5.3.0",
+        "npm:@fontsource-variable/space-grotesk@5.3.0",
+        "npm:@fontsource/ibm-plex-mono@5.3.0",
+        "npm:@fontsource/ibm-plex-sans@5.3.0",
+        "npm:@playwright/test@1.65.0",
+        "npm:@types/node@26.6.6",
+        "npm:lz-string@1.5.0",
+        "npm:oxlint@^1.93.0",
+        "npm:typescript@^7.0.2",
+        "npm:vite@^8.3.8",
+        "npm:wrangler@4.160.1"
+      ],
+      "overrides": {
+        "undici": "7.30.2",
+        "sharp": "0.35.5"
+      }
+    }
+  }
+}

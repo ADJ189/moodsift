@@ -2,6 +2,109 @@
 
 All notable changes to this project are documented here.
 
+## [1.14.0] — Dependency refresh, Deno tests, engine/device matrix, anti-slop pass
+
+A maintenance and hardening release. Every dependency is on a current stable
+version, CI runs Node 26, the pure logic has a native Deno suite, and
+Playwright now covers three browser engines and five form factors at no more
+than three workers. A targeted design pass removes the generated-template
+tells without changing the product's behaviour. No Svelte migration was
+performed; the evaluation is in `docs/ui-framework-evaluation.md`.
+
+### Added
+
+- **Native Deno tests** (`tests/deno/`, 45 tests): media keys, deterministic
+  ranking and hard filters, the profile codec, SHA-256 vectors, IMDb and
+  Letterboxd importers, AI candidate policy and local AI engine matrix across 3 families × 2 backends ×
+  4 modes × 7 device profiles, and the `/models/` relay's path/redirect rules.
+  They use `Deno.test` and `jsr:@std/assert`, need no browser, and never
+  download a model. `deno.json` adds `dev`, `check`, `lint`, `build`, `test`,
+  `test:e2e`, `test:e2e:fast`, `test:engines`, `test:devices` and
+  `ai:manifest:check` tasks. `npm run test:deno` is the npm entry point.
+- **Device/environment matrix** (`tests/matrix.spec.ts`): every viewport, the
+  24 × 24 px WCAG 2.2 target minimum, 200 % text, forced colors, reduced
+  motion, system color scheme, blocked storage, an unreadable profile and a
+  `de-DE` locale/timezone.
+- **AI brute-force matrix** (`tests/local-ai-matrix.spec.ts`): 3 model
+  families × 2 backends × 4 modes × 7 device profiles with injected
+  runtime/fetch/cache fakes; verifies policy order, WebGPU eligibility,
+  constrained-device limits and that generation never re-downloads a model.
+- **Playwright projects** for tablet, 320 px, landscape, WebKit and Firefox,
+  plus `test:devices`, `test:engines` and `test:matrix` scripts. `workers: 3`
+  is enforced in the config and repeated in the scripts.
+- `design.md` (portable design system and anti-slop rules),
+  `docs/design-audit.md`, `docs/ui-framework-evaluation.md` and
+  `docs/device-engine-test-matrix.md`.
+
+### Changed
+
+- **Dependencies**: `wrangler` 4.160.1, `@types/node` 26.6.6,
+  `@playwright/test` 1.65.0, `oxlint` 1.93.0, `vite` 8.3.8. The lockfile
+  overrides are `undici` 7.30.2 (not 8.x) and `sharp` 0.35.5. `npm audit`
+  reports 0 vulnerabilities. CI (`ci.yml`, `lighthouse.yml`) moved from Node
+  22 to Node 26, matching `@types/node`.
+- **Design (targeted, not a redesign)**: the default body face is **Manrope**
+  (was Inter; Inter stays in optional presets), the landing headline is solid
+  instead of gradient-clipped, the mono eyebrow is gone and the privacy line
+  moved under the CTA, the two-blob radial glow became one restrained
+  top-light, default particles are `subtle` (was `balanced`), the large radius
+  is 20 px (was 24 px), and the hero float is 4 px (was 8 px). All eight
+  palettes, five design styles, four card types, four search types and eight
+  font presets are unchanged.
+- **Cross-engine safety**: screen changes no longer use
+  `document.startViewTransition`, and the screen fade is opacity-only. Both
+  changes remove a WebKit 27.2 renderer crash on repeated landing → quiz
+  transitions (see Fixed).
+- **Version** is `1.14.0` in `package.json`, `package-lock.json`,
+  `src/lib/app-version.ts` and `AGENTS.md`.
+
+### Fixed
+
+- **WebKit renderer crash during the quiz flow.** Playwright's WebKit 27.2
+  build consistently crashed the page on the landing → quiz transition (and
+  again on quiz → rating) on Windows. Two triggers were isolated by
+  bisecting injected CSS/JS: `document.startViewTransition` called
+  repeatedly, and a `translateY` animation on the full-height `.screen`.
+  `swap()` now performs a plain screen swap, and `@keyframes screen-in` fades
+  opacity only. The behaviour (and Reduced Motion) is unchanged; the app no
+  longer depends on a decorative API for correctness.
+- **200 % text on a 393 px phone.** The header overflowed by 25 px because the
+  wordmark and five actions could not shrink; the H1 ("something") also
+  exceeded its column by 11 px. The brand now truncates with an ellipsis
+  (its `aria-label` is unchanged) and the headline may break a long word only
+  when necessary. Both are inside the viewport at 200 % text.
+- **Test-harness correctness**: the touch-gesture tests skip explicitly on
+  non-Chromium engines (CDP-only), the touch-context test skips on Firefox
+  (`isMobile` is unsupported), and the 24 × 24 check ignores controls inside
+  closed popovers (opacity 0, `pointer-events: none`) and off-screen panels.
+  These were skipped/filtered for a stated reason, not silently passed.
+- `tsconfig.json` excludes `tests/deno` so `tsc` does not try to own Deno
+  modules; `deno task check` type-checks them instead.
+
+### Not in this release
+
+- **No Svelte (or other framework) migration.** Evaluation and recommendation
+  only: keep the vanilla TypeScript UI. See `docs/ui-framework-evaluation.md`.
+- No full Hallmark-style visual redesign, no new layout direction and no new
+  component language. The existing screenshots were not re-shot.
+- No real model download, real-device inference, production deployment or
+  live-TMDB test run. The AI matrix uses fakes by design.
+
+### Verification
+
+- **Fast gate (`npm test`)**: 453 passed, 10 skipped, 0 failed across Chromium desktop and mobile (4.2m at 3 workers).
+- **Engine matrix (`npm run test:engines`)**: 892 passed, 20 skipped, 0 failed across WebKit desktop, WebKit mobile, Firefox desktop, and Firefox mobile (16.7m at 3 workers).
+- **Device & matrix suite**: 81 passed, 3 skipped, 0 failed across `chromium-small` (320px) and `chromium-landscape` (Pixel 7 landscape).
+- **Local AI matrix & integrity**: 40 passed, 0 failed across `local-ai-matrix.spec.ts`, `local-ai-engine.spec.ts`, and `local-ai-integrity.spec.ts` with simulated backends and zero real model downloads.
+- **Native Deno suite (`deno task test`)**: 45 passed, 0 failed in 581ms covering pure logic (scoring engine, media keys, sha256, codecs, importers, AI candidate policy, model proxy, and local AI matrix).
+- **Deno Playwright execution (`deno task test:e2e`)**: Verified functional; runs all specs cleanly under Deno runtime.
+- **Static checks & audits**:
+  - `npm run typecheck` & `deno task check`: 0 errors.
+  - `npm run lint` & `deno task lint`: 0 warnings, 0 errors (Oxlint 1.93.0 on 88 files).
+  - `npm run ai:manifest:check`: 0 drift; `ai-manifest.json` matches Hugging Face upstream metadata.
+  - `npm audit`: 0 vulnerabilities (overrides: `undici` 7.30.2, `sharp` 0.35.5).
+  - Worker smoke: Same-origin `/models/` relay, range requests, security headers (COOP/COEP/CSP), and `/api/recommend` endpoints verified.
+
 ## [1.13.8] — Same-origin Hugging Face model relay
 
 Local AI no longer asks the browser to fetch model files from `huggingface.co` directly. Every model artifact now comes from the Moodsift origin under `/models/`, so model loads no longer depend on Hugging Face's CORS and redirect behaviour. The relay is allow-listed, pinned to full commit SHAs, and streams bytes; it is not an open proxy. Inference still happens entirely on the user's device.

@@ -124,7 +124,7 @@ export function subscribeAiMode(fn: (mode: AiMode) => void): () => void {
 // Another tab changed the mode: adopt it so every tab follows the stored
 // choice, and let the engine reset itself.
 window.addEventListener('storage', (e) => {
-  if (e.key !== AI_MODE_KEY) return;
+  if ((e as { key?: string }).key !== AI_MODE_KEY) return;
   const next = readStored();
   if (next === getAiMode()) return;
   current = next;
