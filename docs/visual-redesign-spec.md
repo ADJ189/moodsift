@@ -4,6 +4,17 @@
 **Applies to:** Moodsift v1.11.x (written then; implemented in v1.13.0 — see `CHANGELOG.md` for where the shipped version differs)  
 **Implementation style:** Preserve the existing framework-free TypeScript + Vite architecture.
 
+> **v1.14.0 note — targeted anti-slop pass.** The structure described here is
+> unchanged: the same card types, design styles, search types, palettes,
+> settings sections and preference semantics ship. What changed is the default
+> *dressing*: the default body face is Manrope rather than Inter, the landing
+> headline is solid instead of gradient-clipped, the mono eyebrow is gone, the
+> double radial glow became a single top-light, default hero particles are
+> `subtle`, the large radius is 20 px, and the hero float is 4 px. The intent
+> is recorded in `design.md` and `docs/design-audit.md`. Nothing in this
+> document should be read as requiring a gradient headline or an eyebrow
+> label; those were never part of the accepted direction.
+
 ## 1. Goal
 
 Redesign Moodsift's title cards, search experience, and Settings UI so the product feels like a premium cinematic discovery tool rather than a generic content grid. The approved direction is:

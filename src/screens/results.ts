@@ -84,7 +84,6 @@ export function renderResults(root: HTMLElement): () => void {
   let drawToken = 0;
   let closeOpenModal: (() => void) | null = null;
   let closeCompare: (() => void) | null = null;
-  let posterTransitionActive = false;
   const compareTray = buildCompareTray((opener) => {
     closeCompare?.();
     closeCompare = openCompareDialog(opener, () => {
@@ -940,38 +939,12 @@ export function renderResults(root: HTMLElement): () => void {
 
     let release: () => void = () => {};
     const show = () => {
-      if (modalClosed) return; // closed (or screen left) before a transition callback ran
+      if (modalClosed) return;
       document.body.appendChild(overlay);
       document.body.style.overflow = 'hidden';
-      release = trapFocus(modal, { initialFocus: closeBtn, onEscape: close });
+      release = trapFocus(modal, { initialFocus: closeBtn, onEscape: close, restoreFocus: trigger });
     };
-    // Shared-element transition: the clicked poster morphs into the sheet's
-    // hero. Progressive enhancement only — unsupported browsers, Motion: Off,
-    // or a transition already in flight all take the plain path above.
-    const source = trigger?.closest<HTMLElement>('.result-card, .featured')?.querySelector<HTMLElement>('.result-poster, .featured-poster') ?? null;
-    const doc = document as Document & { startViewTransition?: (cb: () => void) => { finished: Promise<unknown> } };
-    if (source && !posterTransitionActive && typeof doc.startViewTransition === 'function' && document.documentElement.getAttribute('data-motion') !== 'off' && !document.hidden) {
-      posterTransitionActive = true;
-      source.style.viewTransitionName = 'poster-hero';
-      try {
-        const t = doc.startViewTransition(() => {
-          source.style.viewTransitionName = '';
-          hero.style.viewTransitionName = 'poster-hero';
-          show();
-        });
-        void t.finished.catch(() => {}).finally(() => {
-          posterTransitionActive = false;
-          hero.style.viewTransitionName = '';
-          source.style.viewTransitionName = '';
-        });
-      } catch {
-        posterTransitionActive = false;
-        source.style.viewTransitionName = '';
-        show();
-      }
-    } else {
-      show();
-    }
+    show();
 
     closeOpenModal = close;
 

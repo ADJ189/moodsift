@@ -111,11 +111,14 @@ Vanilla TypeScript + Vite. No framework. The UI is a handful of screens and a sm
 | **Build** | Vite 8 |
 | **Lint** | oxlint |
 | **Data** | [TMDB](https://www.themoviedb.org/documentation/api) (required), [OMDb](https://www.omdbapi.com/) (optional) |
-| **On-device AI** | [`@huggingface/transformers`](https://huggingface.co/docs/transformers.js) v4, loaded from CDN, Web Worker, WebGPU with a WASM fallback |
-| **Tests** | Playwright + axe (desktop and mobile Chromium) |
-| **Deploy target** | Cloudflare Workers (static assets + a small API Worker) |
+| **On-device AI** | [`@huggingface/transformers`](https://huggingface.co/docs/transformers.js) v4, model files via the same-origin `/models/` relay, Web Worker, WebGPU with a WASM fallback |
+| **Tests** | Playwright + axe across Chromium, WebKit and Firefox, desktop and mobile; native Deno tests for pure logic |
+| **Runtime** | Node 26 (canonical runtime for CI, Worker build/deploy, and Playwright matrix); Deno 2.9+ (optional developer preference for tasks and native pure-logic tests); at most 3 browser workers everywhere |
+| **Deploy target** | Cloudflare Workers (static assets + a small API Worker; built and deployed via Node/npm and Wrangler) |
 
 ## Getting started
+
+Node.js (v26) is the official runtime used by the project, GitHub Actions CI, and Cloudflare Worker tooling. Deno support is available as an optional developer preference for running tasks and native pure-logic tests.
 
 The live deployment already has `VITE_TMDB_TOKEN` set as a Cloudflare **project variable**, so production builds need nothing from you — this section is for running the app locally.
 
@@ -132,7 +135,12 @@ npm run dev        # local Vite dev server
 | `npm run lint` | oxlint |
 | `npm run build` | Typecheck, then production build to `dist/` |
 | `npm run worker:dev` | Run the actual Cloudflare Worker locally via wrangler, serving `dist/` |
-| `npm test` | Playwright suite |
+| `npm test` | Fast Playwright gate: Chromium desktop + mobile |
+| `npm run test:devices` | Tablet, 320 px, landscape and mobile form factors |
+| `npm run test:engines` | WebKit and Firefox desktop + mobile |
+| `npm run test:matrix` | Every project in one run (all specs, all engines/devices) |
+| `npm run test:deno` | Native Deno tests for the pure modules |
+| `deno task dev` | Vite dev server through Deno instead of Node |
 
 ## Configuration
 
@@ -154,25 +162,61 @@ Fill in `.env`:
 | **Letterboxd** | Optional | Import a `ratings.csv` export for taste calibration |
 | **IMDb** | Optional | Import an IMDb ratings CSV export (1–10 mapped to 0.5–5 stars; TV episodes and games are skipped and counted) |
 | **Local profile** | Always on | Compressed localStorage identity, rating history, watchlist, with taste-memory controls — this browser only |
-| **On-device AI** | Optional, opt-in | Loads a small quantized model from CDN at runtime (never part of `npm install` — see the comment at the top of `src/lib/ai-worker.ts`) |
+| **On-device AI** | Optional, opt-in | Loads a small quantized model at runtime through the same-origin `/models/` relay (never part of `npm install` — see the comment at the top of `src/lib/ai-worker.ts`) |
 
 ## Testing
 
 ```bash
-npm run test:install   # once: downloads Chromium for Playwright
-npm test               # builds with a dummy TMDB key, mocks TMDB, runs desktop + mobile
+npm run test:install   # once: downloads Chromium for the fast gate
+npx playwright install chromium firefox webkit   # full engine/device matrix
+npm test               # fast gate: Chromium desktop + mobile
+npm run test:devices   # tablet, 320 px, landscape, WebKit/Firefox mobile
+npm run test:engines   # WebKit + Firefox desktop/mobile
+npm run test:matrix    # every project (slow; the release check)
+npm run test:deno      # native Deno tests (no browser)
 npm run test:visual    # opt-in screenshot comparisons
 ```
 
-The suite covers appearance persistence/validation, the quiz → rating → results flow, rating a result, movie/TV id collisions, library re-import semantics, compare, the command menu, keyboard/focus rules, profile storage and taste-memory controls, the local-AI policy/engine/integrity/diagnostics logic, the `/api/recommend` Worker route, the same-origin `/models/` proxy (allow-list, redirects, Range/HEAD, traversal rejection), and axe accessibility scans. Real model downloads and real-device inference are not exercised by the suite. Visual baselines are intentionally **not committed** (rendering differs between machines): generate them where they'll be compared with `npm run test:visual -- --update-snapshots`. CI also runs typecheck, lint, build, and Lighthouse.
+Every Playwright command pins `workers: 3`. Each project drives a real
+multi-screen flow against one shared preview server, so more workers test the
+host rather than the app. Projects are: `chromium-desktop`,
+`chromium-mobile`, `chromium-tablet`, `chromium-small` (320 × 640),
+`chromium-landscape`, `webkit-desktop`, `webkit-mobile`, `firefox-desktop`
+and `firefox-mobile`. Firefox cannot emulate `isMobile`, and touch-gesture
+synthesis uses the Chrome DevTools Protocol, so those few tests are skipped
+(rather than silently passed) on engines that cannot run them.
+
+The suite covers appearance persistence/validation, the quiz → rating →
+results flow, rating a result, movie/TV id collisions, library re-import
+semantics, compare, the command menu, keyboard/focus rules, profile storage
+and taste-memory controls, the local-AI policy/engine/integrity/diagnostics
+logic (including a 3 families × 2 backends × 4 modes × 7 device-profile
+matrix with injected fakes — no model is downloaded), the `/api/recommend`
+Worker route, the same-origin `/models/` proxy (allow-list, redirects,
+Range/HEAD, traversal rejection), viewport/zoom/forced-colors/reduced-motion
+behaviour, blocked and unreadable storage, and axe accessibility scans across
+every palette, card type, design style and search type.
+
+The native Deno suite covers the pure modules that do not need a DOM: media
+keys, the scoring engine's determinism and hard filters, the profile codec,
+SHA-256, the IMDb/Letterboxd importers, AI candidate policy and the relay's
+path/redirect rules. `deno task check|lint|build|test` mirror the npm
+commands; `tsconfig.json` excludes `tests/deno` because Deno owns those
+modules and their `jsr:`/explicit-`.ts` imports.
+
+Real model downloads and real-device inference are not exercised by either
+suite. Visual baselines are intentionally **not committed** (rendering
+differs between machines): generate them where they'll be compared with
+`npm run test:visual -- --update-snapshots`. CI also runs typecheck, lint,
+build, dependency audit and Lighthouse on Node 26.
 
 ## Deployment
 
 ```bash
-npm run deploy   # builds, then runs `wrangler deploy`
+npm run deploy   # builds, then runs `wrangler deploy` via Node/npm
 ```
 
-Moodsift is a genuine Cloudflare Worker (`wrangler.jsonc` declares `main: worker/index.ts`), not a Pages project — it serves the built `dist/` folder via Workers Static Assets and handles `/models/` plus the optional `/api/recommend`. `run_worker_first: true` keeps the Worker in front of static assets so `/models/` cannot be shadowed by a file in `dist/` and the COOP/COEP/CSP headers are actually applied to HTML and asset responses. Live at **https://moodsift.adj189.workers.dev/**.
+Moodsift deploys as a genuine Cloudflare Worker (`wrangler.jsonc` declares `main: worker/index.ts`), built and deployed with Node/npm and Wrangler (Node 26). Deno is not used in production deployment or CI workflows. The Worker serves the built `dist/` folder via Workers Static Assets and handles `/models/` plus the optional `/api/recommend`. `run_worker_first: true` keeps the Worker in front of static assets so `/models/` cannot be shadowed by a file in `dist/` and the COOP/COEP/CSP headers are actually applied to HTML and asset responses. Live at **https://moodsift.adj189.workers.dev/**.
 
 Set `VITE_TMDB_TOKEN` (and optionally `VITE_OMDB_KEY`) as **project variables** in the Cloudflare dashboard so they're present when `npm run build` runs; `.env` is gitignored and never committed.
 
@@ -233,8 +277,11 @@ worker/
   dev-proxy.ts       Vite dev/preview middleware that calls the same model-proxy handler
 public/              logo, favicons, app icons, social image
 assets/brand/        full-resolution logo masters (not served)
-docs/                Moodsift-Local-AI-Engine-Policy.md, Moodsift-Taste-Memory.md, visual-redesign-spec.md
+design.md            portable design system and anti-slop rules
+docs/                Local-AI policy, Taste Memory, visual redesign spec, design audit,
+                     UI-framework evaluation, device/engine test matrix
 tests/               Playwright specs + fixtures.ts (mocked TMDB)
+tests/deno/          native Deno tests for pure modules (no browser)
 AGENTS.md            instructions for AI coding agents
 ```
 
@@ -283,7 +330,9 @@ Issues and PRs are welcome. Before opening a PR:
 npm run typecheck   # must be clean — strict mode, covers src/, worker/ and tests/
 npm run lint        # must be clean
 npm run build       # must succeed
-npm test            # Playwright + axe
+npm test            # Chromium desktop + mobile
+npm run test:deno   # native Deno tests
+npm run test:devices  # form-factor matrix (add test:engines/matrix for a release)
 ```
 
 Keep the "no framework" constraint in mind — new UI goes through `src/lib/dom.ts`'s `el()` helper, not a new dependency. See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full workflow and scope, and the [Code of Conduct](./CODE_OF_CONDUCT.md).

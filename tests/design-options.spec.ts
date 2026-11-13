@@ -225,7 +225,7 @@ test.describe('search', () => {
   });
 
   test('compact shows type tags; expanded shows a preview of the highlighted result', async ({ page, mock, isMobile }) => {
-    test.skip(isMobile, 'the expanded preview pane needs a wide viewport');
+    test.skip(isMobile || (page.viewportSize()?.width ?? 1000) < 640, 'the expanded preview pane needs a wide viewport');
     void mock;
     await mockSearchResults(page);
     await seed(page, { searchType: 'compact' });
@@ -365,7 +365,7 @@ test.describe('result cards', () => {
   });
 
   test('keyboard focus reveals the quick actions; Details opens the same sheet as the title', async ({ page, mock, isMobile }) => {
-    test.skip(isMobile, 'touch devices show the quick actions at rest');
+    test.skip(isMobile || (page.viewportSize()?.width ?? 1000) < 640, 'touch devices show the quick actions at rest');
     void mock;
     await seed(page, {});
     await page.goto('/');
@@ -390,7 +390,8 @@ test.describe('result cards', () => {
     await expect(page.locator('.result-card .result-open').first()).toHaveAttribute('tabindex', '-1');
   });
 
-  test('touch: quick actions are visible without hover', async ({ browser }) => {
+  test('touch: quick actions are visible without hover', async ({ browser, browserName }) => {
+    test.skip(browserName === 'firefox', 'Playwright does not support isMobile contexts in Firefox');
     const ctx = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 800 } });
     const page = await ctx.newPage();
     const { mockTmdb } = await import('./fixtures');

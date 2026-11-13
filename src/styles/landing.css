@@ -20,17 +20,16 @@
   display: none;
 }
 
-/* Atmosphere: accent glow + film grain, all token-driven so every palette
-   and mode gets its own. */
+/* Atmosphere: one restrained top-light plus film grain. A single, quieter
+   wash keeps the cinematic feel without the two-blob "AI hero" glow; every
+   palette and mode still gets its own colour. */
 .landing::before {
   content: '';
   position: absolute;
   inset: 0;
   z-index: var(--z-bg);
   pointer-events: none;
-  background:
-    radial-gradient(55% 45% at 22% 38%, color-mix(in srgb, var(--violet) 20%, transparent), transparent 70%),
-    radial-gradient(45% 40% at 82% 62%, color-mix(in srgb, var(--cyan) 14%, transparent), transparent 70%);
+  background: radial-gradient(64% 52% at 50% 0%, color-mix(in srgb, var(--violet) 11%, transparent), transparent 72%);
 }
 
 .landing::after {
@@ -64,6 +63,8 @@
   align-items: flex-start;
   gap: 18px;
   text-align: left;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .eyebrow {
@@ -77,11 +78,16 @@
   font-size: clamp(2.25rem, 5.6vw, 4rem);
   line-height: 1.04;
   letter-spacing: -0.025em;
-  background: var(--gradient-match);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  /* Solid type, not a violet→cyan gradient. The headline is the one place
+     the brand should feel authored rather than templated. */
+  color: var(--text-primary);
+  text-wrap: balance;
+  /* A 72 px headline at 200 % text can be wider than a 393 px phone by the
+     width of "something". Breaking only when necessary keeps the line, and
+     the page, inside the viewport. */
+  overflow-wrap: anywhere;
   padding-bottom: 0.08em;
+  max-width: 100%;
 }
 
 .landing-title:focus {
@@ -229,7 +235,7 @@
 
 @keyframes hero-float {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+  50% { transform: translateY(-4px); }
 }
 
 .hero-sample-art {
