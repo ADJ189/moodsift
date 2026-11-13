@@ -16,7 +16,7 @@
 // in the same version's files from a mirror (see ensureWasmHost).
 
 import { createEngine, RuntimeImportError, type InMsg, type RuntimeModule } from './ai-engine';
-import manifest from '../data/ai-manifest.json';
+import manifest from '../data/ai-manifest.json' with { type: 'json' };
 import type { ManifestFileShape } from './ai-integrity';
 import type { ResourceSnapshot } from './ai-policy';
 
@@ -28,33 +28,30 @@ const JS_CDN_SOURCES = [
   `https://unpkg.com/@huggingface/transformers@${TRANSFORMERS_VERSION}?module`,
 ];
 
-const ctx = self as unknown as {
-  postMessage: (message: unknown) => void;
-  onmessage: ((ev: { data: InMsg }) => void) | null;
-  navigator: Navigator & {
-    deviceMemory?: number;
-    userAgentData?: { mobile?: boolean };
-    gpu?: { requestAdapter(): Promise<{ features: ReadonlySet<string> } | null> };
-  };
-  crossOriginIsolated?: boolean;
-  caches?: CacheStorage;
-  /** The page/worker origin used to build the same-origin /models/ URL. */
-  location: { origin: string };
+export type DeviceNavigator = {
+  deviceMemory?: number;
+  hardwareConcurrency?: number;
+  userAgent?: string;
+  userAgentData?: { mobile?: boolean };
+  gpu?: { requestAdapter(): Promise<{ features: { has(feature: string): boolean } } | null> };
 };
 
 /** Collects device estimates, treating coarsePointer as a mobile hint and
  * requiring shader-f16 for a usable GPU. Adapter errors yield webgpuAdapter=false;
  * unknown memory stays undefined and unavailable core counts default to four. */
-async function detect(coarsePointer: boolean): Promise<ResourceSnapshot & { webgpuApi: boolean }> {
-  const nav = ctx.navigator;
-  const mem = typeof nav.deviceMemory === 'number' && nav.deviceMemory > 0 ? nav.deviceMemory : undefined;
-  const cores = typeof nav.hardwareConcurrency === 'number' && nav.hardwareConcurrency > 0 ? Math.floor(nav.hardwareConcurrency) : 4;
-  const mobile = nav.userAgentData?.mobile === true || coarsePointer || /Android|iPhone|iPad|iPod|Mobi/i.test(nav.userAgent || '');
+export async function detectDevice(
+  nav?: DeviceNavigator,
+  crossOriginIsolated = false,
+  coarsePointer = false,
+): Promise<ResourceSnapshot & { webgpuApi: boolean }> {
+  const mem = typeof nav?.deviceMemory === 'number' && nav.deviceMemory > 0 ? nav.deviceMemory : undefined;
+  const cores = typeof nav?.hardwareConcurrency === 'number' && nav.hardwareConcurrency > 0 ? Math.floor(nav.hardwareConcurrency) : 4;
+  const mobile = nav?.userAgentData?.mobile === true || coarsePointer || /Android|iPhone|iPad|iPod|Mobi/i.test(nav?.userAgent || '');
 
   // The q4f16 models require a real adapter with half-precision shader support.
   // `'gpu' in navigator` alone is true on devices with no usable adapter.
   let webgpuAdapter = false;
-  if (nav.gpu) {
+  if (nav?.gpu) {
     try {
       const adapter = await nav.gpu.requestAdapter();
       webgpuAdapter = adapter?.features.has('shader-f16') === true;
@@ -62,7 +59,14 @@ async function detect(coarsePointer: boolean): Promise<ResourceSnapshot & { webg
       webgpuAdapter = false;
     }
   }
-  return { deviceMemoryGb: mem, cores, mobile, webgpuAdapter, crossOriginIsolated: ctx.crossOriginIsolated === true, webgpuApi: Boolean(nav.gpu) };
+  return {
+    deviceMemoryGb: mem,
+    cores,
+    mobile,
+    webgpuAdapter,
+    crossOriginIsolated: crossOriginIsolated === true,
+    webgpuApi: Boolean(nav?.gpu),
+  };
 }
 
 /** Returns the first pinned CDN module with a pipeline export. If all sources
@@ -82,21 +86,36 @@ async function importRuntime(): Promise<RuntimeModule> {
   throw new RuntimeImportError('The AI runtime could not be loaded from any source.', failures);
 }
 
-const engine = createEngine({
-  post: (m) => ctx.postMessage(m),
-  detect,
-  importRuntime,
-  baseFetch: (input, init) => fetch(input, init),
-  cacheStorage: ctx.caches,
-  manifest: manifest as ManifestFileShape,
-  // Same-origin model downloads: worker/index.ts (and the Vite dev/preview
-  // middleware) serve /models/ by validating the pinned repository/revision
-  // and relaying Hugging Face server-side. Inference stays in this worker.
-  modelHost: new URL('/models/', ctx.location.origin).href,
-  now: () => Date.now(),
-  isOffline: () => ctx.navigator.onLine === false,
-});
+const ctx = (typeof self !== 'undefined' ? self : undefined) as unknown as {
+  postMessage: (message: unknown) => void;
+  onmessage: ((ev: { data: InMsg }) => void) | null;
+  navigator?: Navigator & DeviceNavigator & { onLine?: boolean };
+  crossOriginIsolated?: boolean;
+  caches?: CacheStorage;
+  /** The page/worker origin used to build the same-origin /models/ URL. */
+  location?: { origin: string };
+} | undefined;
 
-ctx.onmessage = (e) => {
-  void engine.handle(e.data);
-};
+if (ctx && typeof ctx.postMessage === 'function' && ctx.location?.origin) {
+  const detect = (coarsePointer: boolean) =>
+    detectDevice(ctx.navigator, ctx.crossOriginIsolated === true, coarsePointer);
+
+  const engine = createEngine({
+    post: (m) => ctx.postMessage(m),
+    detect,
+    importRuntime,
+    baseFetch: (input, init) => fetch(input, init),
+    cacheStorage: ctx.caches,
+    manifest: manifest as ManifestFileShape,
+    // Same-origin model downloads: worker/index.ts (and the Vite dev/preview
+    // middleware) serve /models/ by validating the pinned repository/revision
+    // and relaying Hugging Face server-side. Inference stays in this worker.
+    modelHost: new URL('/models/', ctx.location.origin).href,
+    now: () => Date.now(),
+    isOffline: () => ctx.navigator?.onLine === false,
+  });
+
+  ctx.onmessage = (e) => {
+    void engine.handle(e.data);
+  };
+}
