@@ -942,7 +942,7 @@ export function renderResults(root: HTMLElement): () => void {
       if (modalClosed) return;
       document.body.appendChild(overlay);
       document.body.style.overflow = 'hidden';
-      release = trapFocus(modal, { initialFocus: closeBtn, onEscape: close });
+      release = trapFocus(modal, { initialFocus: closeBtn, onEscape: close, restoreFocus: trigger });
     };
     show();
 
@@ -956,9 +956,6 @@ export function renderResults(root: HTMLElement): () => void {
       overlay.remove();
       document.body.style.overflow = '';
       release();
-      if (trigger && document.contains(trigger) && document.activeElement !== trigger) {
-        trigger.focus({ preventScroll: true });
-      }
     }
 
     overlay.addEventListener('click', (e) => {
