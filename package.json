@@ -36,6 +36,10 @@
     "@types/node": "26.6.6",
     "oxlint": "^1.94.0",
     "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "wrangler": "^4.151.3"
+    "vite": "^8.3.5",
+    "wrangler": "4.151.3"
     "vite": "^8.3.8",
     "wrangler": "4.160.1"
   },
