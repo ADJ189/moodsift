@@ -32,7 +32,7 @@
     "oxlint": "^1.90.0",
     "@types/node": "26.6.5",
     "oxlint": "^1.91.0",
-    "@playwright/test": "1.65.0",
+    "@playwright/test": "1.65.1",
     "@types/node": "26.6.6",
     "oxlint": "^1.94.0",
     "typescript": "^7.0.2",
