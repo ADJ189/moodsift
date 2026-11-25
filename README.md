@@ -135,10 +135,10 @@ npm run dev        # local Vite dev server
 | `npm run lint` | oxlint |
 | `npm run build` | Typecheck, then production build to `dist/` |
 | `npm run worker:dev` | Run the actual Cloudflare Worker locally via wrangler, serving `dist/` |
-| `npm test` | Fast Playwright gate: Chromium desktop + mobile |
-| `npm run test:devices` | Tablet, 320 px, landscape and mobile form factors |
-| `npm run test:engines` | WebKit and Firefox desktop + mobile |
-| `npm run test:matrix` | Every project in one run (all specs, all engines/devices) |
+| `npm test` | Fast Playwright gate: unit + Chromium desktop + mobile |
+| `npm run test:devices` | Tablet, 320 px, landscape and WebKit mobile form factors |
+| `npm run test:engines` | WebKit (desktop + mobile) and Firefox desktop |
+| `npm run test:matrix` | Every project in one run (unit + all 8 browser/device projects) |
 | `npm run test:deno` | Native Deno tests for the pure modules |
 | `deno task dev` | Vite dev server through Deno instead of Node |
 
@@ -167,22 +167,21 @@ Fill in `.env`:
 ## Testing
 
 ```bash
-npm run test:install   # once: downloads Chromium for the fast gate
-npx playwright install chromium firefox webkit   # full engine/device matrix
-npm test               # fast gate: Chromium desktop + mobile
-npm run test:devices   # tablet, 320 px, landscape, WebKit/Firefox mobile
-npm run test:engines   # WebKit + Firefox desktop/mobile
-npm run test:matrix    # every project (slow; the release check)
+npm run test:install   # once: downloads Chromium, Firefox and WebKit
+npm test               # fast gate: unit + Chromium desktop + mobile
+npm run test:devices   # tablet, 320 px, landscape, WebKit mobile
+npm run test:engines   # WebKit desktop/mobile + Firefox desktop
+npm run test:matrix    # every project (all specs, all engines/devices)
 npm run test:deno      # native Deno tests (no browser)
 npm run test:visual    # opt-in screenshot comparisons
 ```
 
 Every Playwright command pins `workers: 3`. Each project drives a real
 multi-screen flow against one shared preview server, so more workers test the
-host rather than the app. Projects are: `chromium-desktop`,
-`chromium-mobile`, `chromium-tablet`, `chromium-small` (320 × 640),
-`chromium-landscape`, `webkit-desktop`, `webkit-mobile`, `firefox-desktop`
-and `firefox-mobile`. Firefox cannot emulate `isMobile`, and touch-gesture
+host rather than the app. Projects are: `unit` (pure Node/JS specs, run once),
+`chromium-desktop`, `chromium-mobile`, `chromium-tablet`, `chromium-small`
+(320 × 640), `chromium-landscape`, `webkit-desktop`, `webkit-mobile`, and
+`firefox-desktop`. Firefox cannot emulate `isMobile`, and touch-gesture
 synthesis uses the Chrome DevTools Protocol, so those few tests are skipped
 (rather than silently passed) on engines that cannot run them.
 
