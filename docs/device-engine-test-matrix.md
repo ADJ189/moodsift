@@ -13,6 +13,7 @@ with a dummy TMDB key and mocked TMDB responses; no live API is called.
 
 | Project | Engine | Emulation | Typical use |
 |---|---|---|---|
+| `unit` | Node | Pure JS/Node specs (no browser) | Fast gate (`npm test`) / `test:matrix` |
 | `chromium-desktop` | Chromium 158 | Desktop Chrome, 1280 × 800 | Fast gate (`npm test`) |
 | `chromium-mobile` | Chromium 158 | Pixel 7, touch, `isMobile` | Fast gate (`npm test`) |
 | `chromium-tablet` | Chromium 158 | iPad Mini, touch | `test:devices` |
@@ -21,7 +22,6 @@ with a dummy TMDB key and mocked TMDB responses; no live API is called.
 | `webkit-desktop` | WebKit 27.2 | Desktop Safari, 1280 × 800 | `test:engines` / `test:matrix` |
 | `webkit-mobile` | WebKit 27.2 | iPhone 15 | `test:engines` / `test:devices` |
 | `firefox-desktop` | Firefox 159 | Desktop Firefox, 1440 × 900 | `test:engines` |
-| `firefox-mobile` | Firefox 159 | 390 × 844, touch, **no `isMobile`** | `test:engines` / `test:devices` |
 
 All runs use `workers: 3`. The config and the npm/Deno scripts both pin it;
 raising it makes the shared preview server and host CPU the measured thing.
@@ -29,11 +29,11 @@ raising it makes the shared preview server and host CPU the measured thing.
 ## Commands
 
 ```bash
-npm test               # chromium-desktop + chromium-mobile, every spec
-npm run test:devices   # tablet, 320 px, landscape, webkit-mobile, firefox-mobile
-npm run test:engines   # webkit-desktop/mobile, firefox-desktop/mobile
-npm run test:matrix    # all nine projects (slow; release check)
-npm run test:deno      # 39 native Deno tests, no browser
+npm test               # unit + chromium-desktop + chromium-mobile
+npm run test:devices   # tablet, 320 px, landscape, webkit-mobile
+npm run test:engines   # webkit-desktop/mobile, firefox-desktop
+npm run test:matrix    # unit + all eight browser projects
+npm run test:deno      # 45 native Deno tests, no browser
 deno task test:e2e     # Playwright through Deno
 npm run test:visual    # opt-in screenshots; baselines are not committed
 ```
