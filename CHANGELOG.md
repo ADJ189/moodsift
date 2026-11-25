@@ -2,6 +2,29 @@
 
 All notable changes to this project are documented here.
 
+## [1.14.2] — Code audit fixes and dependency updates
+
+### Added
+
+- Regression and unit tests covering null-body Worker asset responses (`tests/worker-route.spec.ts`), Settings Toast Undo clearing subsequent `customAccent` edits and `getPersonBestWork` composite movie/TV keying (`tests/regressions.spec.ts`), and Letterboxd CSV BOM/multiline/non-finite handling (`tests/deno/imports.test.ts`).
+
+### Changed
+
+- **Dependencies and config cleanup**: removed duplicate keys in `package.json` `devDependencies` and updated `@axe-core/playwright` (`4.14.1`), `@playwright/test` (`1.65.1`), `@types/node` (`26.6.7`), `oxlint` (`^1.95.0`), and `wrangler` (`4.168.0`), with matching versions in `deno.json` (`oxlint@1.95.0`, `@playwright/test@1.65.1`).
+- **Vite 8 native config compatibility**: enabled `"allowImportingTsExtensions": true` in `tsconfig.json` and added explicit `.ts` extensions in `vite.config.ts`, `worker/dev-proxy.ts`, and `worker/model-proxy.ts` to resolve `configLoader: 'native'` build warnings.
+- **CSV parser reuse** (`src/lib/letterboxd.ts`): reused `parseCsv` from `src/lib/imdb.ts`, gaining UTF-8 BOM stripping, multiline quoted-field parsing, and `Number.isFinite` rating validation.
+- **Version** is `1.14.2` in `package.json`, `package-lock.json`, `src/lib/app-version.ts`, `AGENTS.md` and `docs/Moodsift-Local-AI-Engine-Policy.md`.
+
+### Fixed
+
+- **`src/lib/compare.ts`**: guarded `selected.size === 0` and initialized `closed`, `unsub`, and `release` before `subscribeCompare(render)` to eliminate a temporal dead zone `ReferenceError` when opening an empty comparison dialog.
+- **`src/lib/tmdb.ts`**: switched `getPersonBestWork()` deduplication from bare numeric `id` to composite `mediaKey(raw.media_type, raw.id)` so colliding movie and TV IDs in a person's credits are both retained, and guarded `(raw.genres ?? [])` in `getTitleDetails()`.
+- **`src/lib/omdb.ts`**: validated `imdbRating`, `Metascore`, and Rotten Tomatoes percentages with `Number.isFinite` so malformed upstream values never produce `NaN` scores.
+- **`src/lib/profile.ts`**: enforced `Number.isSafeInteger(id)` in `sanitizeHistoryEntry()` and updated `cur.lastVisitAt` during Taste Memory merge imports.
+- **`src/screens/rating.ts`**: added a 10 MiB file-size guard before decoding imported CSV text and preserved remaining stored imports from other providers when replacing one provider's CSV.
+- **`src/lib/settings-panel.ts`**: preserved explicit `customAccent` presence in Toast Undo snapshots so Undo also clears a custom accent applied after a preset or reset toast appears.
+- **`worker/index.ts`**: passed `null` body when wrapping null-body `ASSETS.fetch` responses (`101`, `204`, `205`, `304`) with isolation and CSP headers.
+
 ## [1.14.0] — Dependency refresh, Deno tests, engine/device matrix, anti-slop pass
 
 A maintenance and hardening release. Every dependency is on a current stable

@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite';
-import { modelProxyPlugin } from './worker/dev-proxy';
+import { modelProxyPlugin } from './worker/dev-proxy.ts';
 
 export default defineConfig({
   // /models/ must be handled server-side in dev and preview too. The plugin

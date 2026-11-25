@@ -3,7 +3,7 @@ import { buildPosterImage, el, mount } from '../lib/dom';
 import { parseLetterboxdCsv } from '../lib/letterboxd';
 import { detectImportFormat, parseImdbCsv } from '../lib/imdb';
 import { keyOf, parseMediaKey } from '../lib/media-key';
-import { hasDeliberateRating, recordImportedRatings, recordSeedRating, type ImportProvider } from '../lib/profile';
+import { getProfile, hasDeliberateRating, recordImportedRatings, recordSeedRating, type ImportProvider } from '../lib/profile';
 import { store } from '../lib/store';
 import { findByImdbId, findCatalogItem, isTmdbConfigured, posterUrl, searchTitle } from '../lib/tmdb';
 import type { CatalogItem } from '../lib/types';
@@ -200,6 +200,7 @@ export function renderRating(root: HTMLElement): () => void {
 
   const IMPORT_CAP = 400; // most recent rows; keeps TMDB lookups bounded
   const IMPORT_CONCURRENCY = 5;
+  const MAX_IMPORT_BYTES = 10 * 1024 * 1024; // 10 MiB safety cap before decoding CSV text
 
   // Imports run strictly one at a time, in the order the files were picked.
   // Each import mutates shared state (session ratings, profile, card stars,
@@ -241,6 +242,10 @@ export function renderRating(root: HTMLElement): () => void {
    * only matches visible seeds into session ratings. Updates progress and stars;
    * file-reading errors propagate to the import queue's error handler. */
   async function runImport(file: File): Promise<void> {
+    if (file.size > MAX_IMPORT_BYTES) {
+      setImportStatus('That file is too large to read in the browser (10 MB limit). Export your ratings CSV and try again.');
+      return;
+    }
     const text = await file.text();
     if (cancelled) return;
     // Two supported files, told apart by their header row. Both end up as the
@@ -351,24 +356,31 @@ export function renderRating(root: HTMLElement): () => void {
     applyImport(imported, replace);
 
     // The library itself counts toward the "rate a few" requirement. After a
-    // complete import it is rebuilt (the latest file is the whole library);
-    // after an incomplete one it is only added to.
-    if (replace) libraryKeys.clear();
+    // complete import, prune only keys no longer in the profile (so another
+    // provider's earlier import is kept); after an incomplete one, only add.
+    if (replace) {
+      const inProfile = new Set<string>(getProfile().history.map((h) => keyOf(h)));
+      for (const k of libraryKeys) {
+        if (!inProfile.has(k)) libraryKeys.delete(k);
+      }
+    }
     for (const m of matched) libraryKeys.add(keyOf(m.item));
     const retryNote = failed > 0 ? ` ${failed} lookup${failed === 1 ? '' : 's'} failed, so your earlier import was kept \u2014 try again.` : '';
     setImportStatus(`Imported ${rows.length} ${provider === 'imdb-csv' ? 'titles' : 'films'} \u00b7 matched ${matched.length} \u00b7 couldn\u2019t identify ${unmatched}.${skippedNote}${retryNote}`);
     syncFromStore();
   }
 
-  /** Session ratings = ratings the person gave in the app + this file's
-   * ratings. Anything a previous import put there that this file doesn't
-   * contain is dropped, so a smaller re-import really replaces the old one. */
+  /** Session ratings = ratings the person gave in the app + remaining stored
+   * imports from other providers + this file's ratings. Anything the replaced
+   * provider previously placed here that this file omitted is dropped. */
   function applyImport(imported: Record<string, RatingValue>, replace = true) {
+    const inProfile = replace ? new Set<string>(getProfile().history.map((h) => keyOf(h))) : null;
     const next: Record<string, RatingValue> = {};
     for (const [k, v] of Object.entries(store.getState().ratings)) {
-      // Merge keeps every session rating; replace keeps only in-app ones.
+      // Merge keeps every session rating; replace keeps in-app ones and any
+      // rating still present in the profile (e.g. another provider's import).
       const ref = parseMediaKey(k);
-      if (!replace || (ref && hasDeliberateRating(ref))) next[k] = v;
+      if (!replace || (ref && hasDeliberateRating(ref)) || inProfile?.has(k)) next[k] = v;
     }
     Object.assign(next, imported);
     store.replaceRatings(next);

@@ -54,3 +54,9 @@ Deno.test('Letterboxd without Name/Rating headers yields no rows', () => {
   assertEquals(parseLetterboxdCsv('Title,Year,Score\nHeat,1995,4'), []);
   assertEquals(parseLetterboxdCsv('Name,Year'), []);
 });
+
+Deno.test('Letterboxd strips UTF-8 BOM, supports quoted multiline titles, and ignores Infinity ratings', () => {
+  const csv = '\uFEFFName,Year,Rating\n"Line 1\nLine 2, The",2022,3.5\n"Bad",2020,Infinity\n';
+  const rows = parseLetterboxdCsv(csv);
+  assertEquals(rows, [{ title: 'Line 1\nLine 2, The', year: 2022, rating: 4, stars: 3.5 }]);
+});

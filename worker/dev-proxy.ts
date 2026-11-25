@@ -15,7 +15,7 @@
 import { once } from 'node:events';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
-import { handleModelProxy, MODEL_PREFIX } from './model-proxy';
+import { handleModelProxy, MODEL_PREFIX } from './model-proxy.ts';
 
 type Next = (err?: unknown) => void;
 
