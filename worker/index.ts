@@ -184,7 +184,9 @@ export default {
     // new Response instead of mutating in place.
     const headers = new Headers(assetResponse.headers);
     for (const [key, value] of Object.entries(ISOLATION_HEADERS)) headers.set(key, value);
-    return new Response(assetResponse.body, { status: assetResponse.status, statusText: assetResponse.statusText, headers });
+    // Fetch Standard forbids passing a non-null body with null-body status codes.
+    const nullBody = assetResponse.status === 101 || assetResponse.status === 204 || assetResponse.status === 205 || assetResponse.status === 304;
+    return new Response(nullBody ? null : assetResponse.body, { status: assetResponse.status, statusText: assetResponse.statusText, headers });
   },
 };
 
