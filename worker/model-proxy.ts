@@ -22,7 +22,7 @@
 // development/preview middleware in vite.config.ts, so local testing exercises
 // the same validation and redirect rules as the deployed Worker.
 
-import { MODELS } from '../src/lib/ai-policy';
+import { MODELS } from '../src/lib/ai-policy.ts';
 
 /** Every model request the Worker owns lives under this prefix. */
 export const MODEL_PREFIX = '/models/';

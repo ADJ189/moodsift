@@ -1,6 +1,6 @@
 {
   "name": "moodsift",
-  "version": "1.14.0",
+  "version": "1.14.2",
   "private": true,
   "type": "module",
   "description": "Moodsift \u2014 a fast, framework-free movie & TV recommendation engine.",
@@ -26,18 +26,13 @@
     "ai:manifest:check": "node scripts/generate-ai-manifest.mjs --check"
   },
   "devDependencies": {
-    "@axe-core/playwright": "4.14.0",
-    "@playwright/test": "1.64.1",
-    "@types/node": "26.6.6",
-    "oxlint": "^1.90.0",
-    "@types/node": "26.6.5",
-    "oxlint": "^1.91.0",
+    "@axe-core/playwright": "4.14.1",
     "@playwright/test": "1.65.1",
-    "@types/node": "26.6.6",
-    "oxlint": "^1.94.0",
+    "@types/node": "26.6.7",
+    "oxlint": "^1.95.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
-    "wrangler": "4.160.1"
+    "wrangler": "4.168.0"
   },
   "overrides": {
     "undici": "7.30.2",
