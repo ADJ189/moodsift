@@ -72,4 +72,13 @@ test.describe('Worker /api/recommend (v1.13.5 audit fixes)', () => {
     expect(ro).toContain("object-src 'none'");
     expect(ro).toContain("worker-src 'self' blob:");
   });
+
+  test('null-body asset responses (204, 304) receive isolation headers without throwing', async () => {
+    for (const status of [204, 304] as const) {
+      const res = await worker.fetch(new Request(`${ORIGIN}/asset`), env({ ASSETS: { fetch: async () => new Response(null, { status }) } }));
+      expect(res.status).toBe(status);
+      expect(res.headers.get('Cross-Origin-Opener-Policy')).toBe('same-origin');
+      expect(res.headers.get('Cross-Origin-Embedder-Policy')).toBe('credentialless');
+    }
+  });
 });

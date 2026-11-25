@@ -1,4 +1,4 @@
-import { completeQuiz, expect, openDisclosure, test, toResults } from './fixtures';
+import { completeQuiz, expect, mockSearchResults, openDisclosure, test, toResults } from './fixtures';
 
 // Regression tests for review findings on the command menu, focus handling,
 // saved looks, compare buttons and the Compare-with-before preview.
@@ -158,5 +158,51 @@ test.describe('rating a result', () => {
     const again = page.locator('.result-card', { has: page.locator('.result-title-btn', { hasText: title }) });
     await expect(again).toHaveCount(1);
     await expect(again.locator('.star.filled')).toHaveCount(4);
+  });
+});
+
+test.describe('settings toast undo & person credits', () => {
+  test('toast undo clears a custom accent chosen after a preset', async ({ page, mock }) => {
+    void mock;
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Appearance settings', exact: true }).click();
+    await page.locator('.ap-preset').nth(1).click();
+    await page.getByRole('tab', { name: 'Theme' }).click();
+    await page.locator('.accent-dot').first().click();
+    await expect(page.locator('.accent-dot.active')).toHaveCount(1);
+    await page.locator('.toast-action', { hasText: 'Undo' }).click();
+    await expect(page.locator('.accent-dot.active')).toHaveCount(0);
+  });
+
+  test('person credits keep both a movie and a TV show sharing the same TMDB id', async ({ page, mock }) => {
+    void mock;
+    await mockSearchResults(page);
+    await page.route('**/api.themoviedb.org/3/person/501?*', (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ id: 501, name: 'Mira Calloway', biography: 'Actor', birthday: null, place_of_birth: null, profile_path: null, known_for_department: 'Acting' }),
+      })
+    );
+    await page.route('**/api.themoviedb.org/3/person/501/combined_credits*', (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          cast: [
+            { id: 777, media_type: 'movie', title: 'Shared Id Film', release_date: '2020-01-01', genre_ids: [18], original_language: 'en', vote_average: 8.5, vote_count: 500, popularity: 50, overview: 'Film', poster_path: null, backdrop_path: null },
+            { id: 777, media_type: 'tv', name: 'Shared Id Series', first_air_date: '2021-01-01', genre_ids: [18], original_language: 'en', vote_average: 8.2, vote_count: 500, popularity: 50, overview: 'Series', poster_path: null, backdrop_path: null },
+          ],
+          crew: [],
+        }),
+      })
+    );
+
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Search for a title', exact: true }).click();
+    await page.locator('.search-input').fill('midnight');
+    await page.getByRole('option', { name: /Mira Calloway/ }).click();
+    await expect(page.getByText('Shared Id Film')).toBeVisible();
+    await expect(page.getByText('Shared Id Series')).toBeVisible();
   });
 });
