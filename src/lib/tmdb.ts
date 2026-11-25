@@ -8,6 +8,7 @@
 // VITE_TMDB_KEY (v3 api key) in a local .env file. Neither is committed.
 
 import type { CastMember, CatalogItem, Credits, ContentType, CrewMember, Era, Format, Genre, Language, PersonDetails, PersonSummary, Vibe } from './types';
+import { mediaKey } from './media-key';
 import { getRegion } from './region';
 
 const API_BASE = 'https://api.themoviedb.org/3';
@@ -815,7 +816,7 @@ interface TmdbDetailsRaw extends Omit<TmdbRawResult, 'genre_ids'> {
  * that shape before reusing the same toCatalogItem() mapper. */
 export async function getTitleDetails(id: number, tmdbType: 'movie' | 'tv'): Promise<CatalogItem | null> {
   const raw = await tmdbFetch<TmdbDetailsRaw>(`/${tmdbType}/${id}`, {});
-  return toCatalogItem({ ...raw, genre_ids: raw.genres.map((g) => g.id) }, tmdbType);
+  return toCatalogItem({ ...raw, genre_ids: (raw.genres ?? []).map((g) => g.id) }, tmdbType);
 }
 
 /**
@@ -829,11 +830,13 @@ export async function getPersonBestWork(id: number, limit = 12): Promise<Catalog
     `/person/${id}/combined_credits`,
     {}
   );
-  const seen = new Set<number>();
+  const seen = new Set<string>();
   const items: CatalogItem[] = [];
   for (const raw of [...data.cast, ...data.crew]) {
-    if (seen.has(raw.id) || raw.vote_count < 50) continue;
-    seen.add(raw.id);
+    if ((raw.media_type !== 'movie' && raw.media_type !== 'tv') || raw.vote_count < 50) continue;
+    const key = mediaKey(raw.media_type, raw.id);
+    if (seen.has(key)) continue;
+    seen.add(key);
     const item = toCatalogItem(raw, raw.media_type);
     if (item) items.push(item);
   }

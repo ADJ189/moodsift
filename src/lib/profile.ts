@@ -140,7 +140,7 @@ function sanitizeHistoryEntry(raw: unknown): HistoryEntry | null {
   const id = num(raw.id, -1);
   const rating = num(raw.rating, 0);
   const tmdbType = raw.tmdbType === 'tv' ? 'tv' : raw.tmdbType === 'movie' ? 'movie' : null;
-  if (id < 0 || !tmdbType || !Number.isInteger(rating) || rating < 1 || rating > 5) return null;
+  if (!Number.isSafeInteger(id) || id < 0 || !tmdbType || !Number.isInteger(rating) || rating < 1 || rating > 5) return null;
   const list = (v: unknown, allowed: Set<string>) =>
     Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && allowed.has(x)) : [];
   return {
@@ -768,6 +768,7 @@ export function applyTasteMemoryImport(incoming: LocalProfile, mode: 'replace' |
     const have = new Set(cur.watchlist.map((w) => keyOf(w)));
     cur.history = capHistory([...byKey.values()]);
     cur.watchlist = [...cur.watchlist, ...incoming.watchlist.filter((w) => !have.has(keyOf(w)))];
+    cur.lastVisitAt = Date.now();
   }
   return writeProfile(cached!);
 }

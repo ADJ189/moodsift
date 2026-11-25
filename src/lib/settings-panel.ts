@@ -230,6 +230,13 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
     return el('details', { class: 'ap-advanced' }, [el('summary', {}, [summary]), ...children]);
   }
 
+  /** Captures preferences with explicit `customAccent` so Toast Undo also clears
+   * any custom colour picked after the toast opened. */
+  function undoSnapshot() {
+    const p = getPreferences();
+    return { ...p, customAccent: p.customAccent };
+  }
+
   function sectionResetButton(label: string, run: () => void): HTMLElement {
     return el(
       'button',
@@ -237,7 +244,7 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
         class: 'btn-text',
         type: 'button',
         onclick: () => {
-          const before = { ...getPreferences() };
+          const before = undoSnapshot();
           run();
           showToast('Section reset to defaults', { action: { label: 'Undo', run: () => updatePreferences(before, { immediate: true }) } });
         },
@@ -300,7 +307,7 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
           class: 'ap-tile ap-preset',
           type: 'button',
           onclick: () => {
-            const before = { ...getPreferences() };
+            const before = undoSnapshot();
             applyStarterPreset(p.id);
             showToast(`${p.label} preset applied`, { action: { label: 'Undo', run: () => updatePreferences(before, { immediate: true }) } });
           },
@@ -687,7 +694,7 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
             class: 'btn btn-ghost toolbar-btn',
             type: 'button',
             onclick: () => {
-              const before = { ...getPreferences() };
+              const before = undoSnapshot();
               updatePreferences({ density: 'comfortable', textScale: 110, contrast: 'high', transparency: 'reduced', motion: 'subtle' }, { immediate: true });
               showToast('Comfort preset applied', { action: { label: 'Undo', run: () => updatePreferences(before, { immediate: true }) } });
             },
@@ -934,7 +941,7 @@ export function openAppearancePanel(initial: SettingsSection | LegacyTab = 'over
             class: 'btn-text-danger',
             type: 'button',
             onclick: () => {
-              const before = { ...getPreferences() };
+              const before = undoSnapshot();
               resetAllAppearance();
               showToast('Appearance reset \u2014 your ratings and watchlist are untouched', {
                 action: { label: 'Undo', run: () => updatePreferences(before, { immediate: true }) },

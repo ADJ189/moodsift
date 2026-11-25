@@ -43,11 +43,16 @@ export async function fetchExternalRatings(
       return null;
     }
 
+    const parseFinite = (raw: string | undefined): number | undefined => {
+      if (!raw || raw === 'N/A') return undefined;
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : undefined;
+    };
     const rt = data.Ratings?.find((r) => r.Source === 'Rotten Tomatoes')?.Value;
     const result: ExternalRatings = {
-      imdbRating: data.imdbRating && data.imdbRating !== 'N/A' ? Number(data.imdbRating) : undefined,
-      metacritic: data.Metascore && data.Metascore !== 'N/A' ? Number(data.Metascore) : undefined,
-      rottenTomatoes: rt ? Number(rt.replace('%', '')) : undefined,
+      imdbRating: parseFinite(data.imdbRating),
+      metacritic: parseFinite(data.Metascore),
+      rottenTomatoes: parseFinite(rt?.replace('%', '')),
     };
     cache.set(cacheKey, result);
     return result;

@@ -186,6 +186,11 @@ export function buildCompareTray(onOpen: (opener: HTMLElement) => void): { node:
 
 /** Opens the side-by-side dialog. Resolves focus back to `opener` on close. */
 export function openCompareDialog(opener: HTMLElement | null, onClose?: () => void): () => void {
+  if (selected.size === 0) {
+    onClose?.();
+    return () => {};
+  }
+
   const overlay = el('div', { class: 'modal-overlay compare-overlay' });
   const titleId = 'compare-title';
   const grid = el('div', { class: 'compare-grid', role: 'list' });
@@ -233,21 +238,10 @@ export function openCompareDialog(opener: HTMLElement | null, onClose?: () => vo
     ]);
   };
 
-  const render = (items: ScoredItem[]) => {
-    grid.replaceChildren(...items.map(column));
-    grid.style.setProperty('--cols', String(Math.max(1, items.length)));
-    status.textContent = items.length < 2 ? 'Add at least one more title to compare side by side.' : '';
-    if (items.length === 0) close();
-  };
-  const unsub = subscribeCompare(render);
-
-  const release = trapFocus(dialog, { initialFocus: closeBtn, onEscape: () => close() });
-  overlay.addEventListener('mousedown', (e) => {
-    if (e.target === overlay) close();
-  });
-  closeBtn.addEventListener('click', () => close());
-
   let closed = false;
+  let unsub: () => void = () => {};
+  let release: () => void = () => {};
+
   function close() {
     if (closed) return;
     closed = true;
@@ -255,8 +249,26 @@ export function openCompareDialog(opener: HTMLElement | null, onClose?: () => vo
     overlay.remove();
     document.body.style.overflow = '';
     release();
-    if (opener && document.contains(opener)) opener.focus({ preventScroll: true });
     onClose?.();
   }
+
+  const render = (items: ScoredItem[]) => {
+    grid.replaceChildren(...items.map(column));
+    grid.style.setProperty('--cols', String(Math.max(1, items.length)));
+    status.textContent = items.length < 2 ? 'Add at least one more title to compare side by side.' : '';
+    if (items.length === 0) close();
+  };
+  unsub = subscribeCompare(render);
+  if (closed) {
+    unsub();
+    return () => {};
+  }
+
+  release = trapFocus(dialog, { initialFocus: closeBtn, restoreFocus: opener, onEscape: () => close() });
+  overlay.addEventListener('mousedown', (e) => {
+    if (e.target === overlay) close();
+  });
+  closeBtn.addEventListener('click', () => close());
+
   return close;
 }
