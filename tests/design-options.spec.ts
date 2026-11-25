@@ -55,7 +55,11 @@ test.describe('preferences', () => {
     await expect(html(page)).toHaveAttribute('data-card-type', 'editorial');
     await expect(html(page)).toHaveAttribute('data-design-style', 'neon-noir');
     await expect(html(page)).toHaveAttribute('data-search-type', 'expanded');
-    await page.waitForTimeout(500);
+    await expect.poll(() => page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? '{}'), KEY)).toMatchObject({
+      cardType: 'editorial',
+      designStyle: 'neon-noir',
+      searchType: 'expanded',
+    });
     await page.reload();
     await expect(html(page)).toHaveAttribute('data-card-type', 'editorial');
     await expect(html(page)).toHaveAttribute('data-design-style', 'neon-noir');

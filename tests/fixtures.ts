@@ -50,10 +50,8 @@ export async function mockTmdb(page: Page): Promise<Mock> {
 export async function completeQuiz(page: Page): Promise<void> {
   await page.getByRole('button', { name: /find my next watch|get fresh picks/i }).click();
   for (let i = 0; i < 7; i++) {
-    const option = page.locator('.quiz-option').first();
-    await option.waitFor();
-    await option.click();
-    await page.waitForTimeout(450);
+    await expect(page.locator('.quiz-step-label')).toContainText(`Question ${i + 1} of 7`);
+    await page.locator('.quiz-option').first().click();
   }
   await page.locator('.rating-grid').waitFor({ timeout: 10_000 });
 }

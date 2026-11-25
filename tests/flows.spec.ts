@@ -65,11 +65,11 @@ test.describe('core flow', () => {
       await page.reload();
       await page.getByRole('button', { name: /find my next watch/i }).click();
       for (let i = 0; i < 7; i++) {
+        await expect(page.locator('.quiz-step-label')).toContainText(`Question ${i + 1} of 7`);
         const opts = page.locator('.quiz-option');
         await opts.first().waitFor();
         // the last question is "Who's watching?": solo = 0, family = last
         await opts.nth(i === 6 ? optionIndex : 0).click();
-        await page.waitForTimeout(450);
       }
       await page.locator('.rating-grid').waitFor();
       await toResults(page);
