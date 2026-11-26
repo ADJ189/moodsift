@@ -30,10 +30,16 @@
 // set them as Cloudflare project variables, not Worker secrets, since
 // Wrangler needs them present at build time, not request time).
 
+import * as Sentry from '@sentry/cloudflare';
 import { handleModelProxy, MODEL_PREFIX } from './model-proxy';
 
 export interface Env {
   ASSETS: { fetch(request: Request): Promise<Response> };
+  SENTRY_DSN?: string;
+  SENTRY_ENVIRONMENT?: string;
+  SENTRY_RELEASE?: string;
+  SENTRY_TRACES_SAMPLE_RATE?: string;
+  CF_VERSION_METADATA?: { id: string; tag?: string };
   // Optional: only present if the Workers AI binding is turned on for
   // this project in the Cloudflare dashboard (Settings → Bindings) —
   // declaring "ai" in wrangler.jsonc alone is not enough.
@@ -103,7 +109,7 @@ const CSP_REPORT_ONLY = [
   "img-src 'self' data: blob: https://image.tmdb.org",
   "font-src 'self' data:",
   "worker-src 'self' blob:",
-  "connect-src 'self' https://api.themoviedb.org https://www.omdbapi.com https://huggingface.co https://*.huggingface.co https://*.hf.co https://esm.sh https://cdn.jsdelivr.net https://fastly.jsdelivr.net https://unpkg.com",
+  "connect-src 'self' https://api.themoviedb.org https://www.omdbapi.com https://huggingface.co https://*.huggingface.co https://*.hf.co https://esm.sh https://cdn.jsdelivr.net https://fastly.jsdelivr.net https://unpkg.com https://*.ingest.us.sentry.io https://*.ingest.sentry.io",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -161,34 +167,57 @@ function json(body: unknown, status = 200, extra: Record<string, string> = {}): 
   return Response.json(body, { status, headers: { ...JSON_HEADERS, ...extra } });
 }
 
-export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const url = new URL(request.url);
+function parseSampleRate(raw: string | undefined, fallback: number): number {
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : fallback;
+}
 
-    // Model files must reach the Worker before the static-asset fallback;
-    // /models/ is not a directory in dist/. The proxy owns validation,
-    // redirect following, range handling and streaming.
-    if (url.pathname.startsWith(MODEL_PREFIX)) {
-      return handleModelProxy(request, url);
-    }
-
-    if (url.pathname === '/api/recommend') {
-      if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405);
-      const origin = request.headers.get('Origin');
-      if (origin && origin !== url.origin) return json({ error: 'Forbidden.' }, 403);
-      return handleRecommend(request, env);
-    }
-
-    const assetResponse = await env.ASSETS.fetch(request);
-    // Cloudflare's asset Response is immutable — clone the headers onto a
-    // new Response instead of mutating in place.
-    const headers = new Headers(assetResponse.headers);
-    for (const [key, value] of Object.entries(ISOLATION_HEADERS)) headers.set(key, value);
-    // Fetch Standard forbids passing a non-null body with null-body status codes.
-    const nullBody = assetResponse.status === 101 || assetResponse.status === 204 || assetResponse.status === 205 || assetResponse.status === 304;
-    return new Response(nullBody ? null : assetResponse.body, { status: assetResponse.status, statusText: assetResponse.statusText, headers });
+export default Sentry.withSentry(
+  (env: Env) => {
+    const dsn = env.SENTRY_DSN?.trim();
+    if (!dsn) return undefined;
+    const environment = env.SENTRY_ENVIRONMENT?.trim() || 'production';
+    const isDev = environment === 'development' || environment === 'local';
+    return {
+      dsn,
+      environment,
+      release: env.SENTRY_RELEASE?.trim() || env.CF_VERSION_METADATA?.id,
+      tracesSampleRate: parseSampleRate(env.SENTRY_TRACES_SAMPLE_RATE, isDev ? 1.0 : 0.1),
+      dataCollection: {
+        userInfo: false,
+      },
+    };
   },
-};
+  {
+    async fetch(request: Request, env: Env): Promise<Response> {
+      const url = new URL(request.url);
+
+      // Model files must reach the Worker before the static-asset fallback;
+      // /models/ is not a directory in dist/. The proxy owns validation,
+      // redirect following, range handling and streaming.
+      if (url.pathname.startsWith(MODEL_PREFIX)) {
+        return handleModelProxy(request, url);
+      }
+
+      if (url.pathname === '/api/recommend') {
+        if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405);
+        const origin = request.headers.get('Origin');
+        if (origin && origin !== url.origin) return json({ error: 'Forbidden.' }, 403);
+        return handleRecommend(request, env);
+      }
+
+      const assetResponse = await env.ASSETS.fetch(request);
+      // Cloudflare's asset Response is immutable — clone the headers onto a
+      // new Response instead of mutating in place.
+      const headers = new Headers(assetResponse.headers);
+      for (const [key, value] of Object.entries(ISOLATION_HEADERS)) headers.set(key, value);
+      // Fetch Standard forbids passing a non-null body with null-body status codes.
+      const nullBody = assetResponse.status === 101 || assetResponse.status === 204 || assetResponse.status === 205 || assetResponse.status === 304;
+      return new Response(nullBody ? null : assetResponse.body, { status: assetResponse.status, statusText: assetResponse.statusText, headers });
+    },
+  }
+);
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
