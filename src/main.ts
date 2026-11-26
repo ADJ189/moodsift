@@ -1,3 +1,6 @@
+import { initSentry } from './lib/sentry';
+initSentry();
+
 // Default font pairing is self-hosted and bundled (no third-party font
 // request on first paint). Other presets load on demand — see lib/fonts.ts.
 import '@fontsource-variable/sora/wght.css';
