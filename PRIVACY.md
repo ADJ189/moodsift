@@ -93,6 +93,14 @@ rather than pretending otherwise.
   any personally identifying data — and returns a re-ranking. Cloudflare
   processes this request per Cloudflare's own
   [privacy policy](https://www.cloudflare.com/privacypolicy/).
+- **Sentry** (`*.ingest.us.sentry.io`) — optional error, trace, log, and
+  Session Replay monitoring when a DSN is configured (`VITE_SENTRY_DSN` for the
+  browser app, `SENTRY_DSN` for the Cloudflare Worker). Both SDKs set
+  `dataCollection: { userInfo: false }`, Session Replay masks text and blocks
+  media by default, and trace headers are limited to same-origin requests.
+  Stored ratings, watchlists, quiz answers, and local profile data are never
+  sent to Sentry; Sentry's own [privacy policy](https://sentry.io/privacy/)
+  governs ingested telemetry.
 - **Hosting** — the app itself is served by Cloudflare Workers; loading
   any page necessarily exposes your IP address to Cloudflare's edge
   network, the same as any website.
@@ -115,8 +123,8 @@ rather than pretending otherwise.
 
 This project depends on external APIs it doesn't control the data
 practices of — see [CREDITS.md](./CREDITS.md) for the full list (TMDB,
-OMDb, JustWatch data, Hugging Face's model hosting and the public
-JavaScript CDNs used by the optional AI runtime).
+OMDb, JustWatch data, Hugging Face's model hosting, Sentry error monitoring
+when configured, and the public JavaScript CDNs used by the optional AI runtime).
 Review their own privacy policies if you have specific concerns.
 
 ## Questions

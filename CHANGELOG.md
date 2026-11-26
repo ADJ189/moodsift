@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Added
+
+- **Sentry error, trace, log, and Session Replay monitoring** across both the Vite browser frontend (`src/lib/sentry.ts`, `@sentry/browser`) and the Cloudflare Worker (`worker/index.ts`, `@sentry/cloudflare`), configured via `VITE_SENTRY_DSN` and `SENTRY_DSN` with `dataCollection.userInfo: false` and same-origin `tracePropagationTargets`.
+- **Source map upload support** in `vite.config.ts` (`@sentry/bundler-plugins/vite`, enabled when `SENTRY_AUTH_TOKEN` is set during production builds), `scripts/sentry-worker-sourcemaps.mjs` (`worker:sourcemaps` / `worker:sourcemaps:check` / `deploy` scripts in `package.json`), and `wrangler.jsonc` (`upload_source_maps: true`, `nodejs_compat`, `CF_VERSION_METADATA` binding).
+
+### Changed
+
+- **`worker/index.ts`**: allowed `https://*.ingest.us.sentry.io` and `https://*.ingest.sentry.io` in `CSP_REPORT_ONLY` `connect-src`.
+- **`playwright.config.ts`**: explicitly clears `VITE_SENTRY_DSN` in test server builds so Playwright runs never emit events to Sentry.
+- **`PRIVACY.md` & `README.md`**: documented optional Sentry error/trace telemetry and environment variables.
+
 ## [1.14.2] — Code audit fixes and dependency updates
 
 ### Added

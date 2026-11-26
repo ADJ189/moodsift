@@ -3,6 +3,8 @@ dist/
 .DS_Store
 .env
 .env.local
+.env.sentry-build-plugin
+.dev.vars
 *.local
 .wrangler/
 dist-e2e/

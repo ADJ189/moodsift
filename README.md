@@ -217,7 +217,7 @@ npm run deploy   # builds, then runs `wrangler deploy` via Node/npm
 
 Moodsift deploys as a genuine Cloudflare Worker (`wrangler.jsonc` declares `main: worker/index.ts`), built and deployed with Node/npm and Wrangler (Node 26). Deno is not used in production deployment or CI workflows. The Worker serves the built `dist/` folder via Workers Static Assets and handles `/models/` plus the optional `/api/recommend`. `run_worker_first: true` keeps the Worker in front of static assets so `/models/` cannot be shadowed by a file in `dist/` and the COOP/COEP/CSP headers are actually applied to HTML and asset responses. Live at **https://moodsift.adj189.workers.dev/**.
 
-Set `VITE_TMDB_TOKEN` (and optionally `VITE_OMDB_KEY`) as **project variables** in the Cloudflare dashboard so they're present when `npm run build` runs; `.env` is gitignored and never committed.
+Set `VITE_TMDB_TOKEN` (and optionally `VITE_OMDB_KEY`, `VITE_SENTRY_DSN`) as **project variables** in the Cloudflare dashboard so they're present when `npm run build` runs (and `SENTRY_AUTH_TOKEN` for source map uploads); set `SENTRY_DSN` as a Worker variable/secret for server-side error and trace capture. `.env` and `.dev.vars` are gitignored and never committed.
 
 The Worker's `name` in `wrangler.jsonc` (`moodsift`) is also the `workers.dev` subdomain, and `wrangler deploy` matches on it — renaming it later creates a brand-new, unconfigured Worker instead of updating the one that already has your variables.
 
@@ -262,10 +262,13 @@ src/
     sha256.ts        small streaming SHA-256
     ai-diagnostics.ts, ai-diagnostics-ui.ts   "Test on this device" — pure report/classification logic, and its UI
     app-version.ts   app version string for diagnostic reports (must match package.json)
+    sentry.ts        optional browser-side Sentry SDK init (inactive when VITE_SENTRY_DSN is unset)
   screens/           landing, quiz, rating, results, search — one module each, lazily loaded except landing
   components/        landing-carousel.ts — the landing page's popular-titles gallery (Pointer Events + CSS transforms)
   data/              quiz questions, taste-calibration seed titles, ai-manifest.json (pinned model files + checksums)
-scripts/             generate-ai-manifest.mjs — regenerates/checks the AI model manifest
+scripts/
+  generate-ai-manifest.mjs         regenerates/checks the AI model manifest
+  sentry-worker-sourcemaps.mjs     bundles the Worker and verifies/uploads Sentry source maps
 worker/
   index.ts           Cloudflare Worker entry — serves dist/ via the ASSETS binding, routes
                       /models/ to the model relay, handles POST /api/recommend (optional, off

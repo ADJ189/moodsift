@@ -64,7 +64,7 @@ export default defineConfig({
       url: `http://localhost:${PORT}`,
       // Cross-platform: Playwright's env field works on Windows cmd,
       // PowerShell, macOS and Linux; `VAR=value cmd` does not.
-      env: { VITE_TMDB_KEY: 'test-fixture-key' },
+      env: { VITE_TMDB_KEY: 'test-fixture-key', VITE_SENTRY_DSN: '' },
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },
@@ -73,7 +73,7 @@ export default defineConfig({
       // static sample visual" case. The empty vars win over any local .env.
       command: `npx vite build --outDir dist-e2e-nokey --emptyOutDir && npx vite preview --outDir dist-e2e-nokey --port ${NOKEY_PORT} --strictPort`,
       url: `http://localhost:${NOKEY_PORT}`,
-      env: { VITE_TMDB_KEY: '', VITE_TMDB_TOKEN: '' },
+      env: { VITE_TMDB_KEY: '', VITE_TMDB_TOKEN: '', VITE_SENTRY_DSN: '' },
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },
