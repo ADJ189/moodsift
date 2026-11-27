@@ -70,15 +70,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: chromium-core
+          - name: chromium-desktop
             browser: chromium
-            args: --project=unit --project=chromium-desktop --project=chromium-mobile
-          - name: chromium-devices
+            args: --project=unit --project=chromium-desktop
+          - name: chromium-mobile
             browser: chromium
-            args: --project=chromium-tablet --project=chromium-small --project=chromium-landscape
-          - name: webkit
+            args: --project=chromium-mobile
+          - name: chromium-tablet-landscape
+            browser: chromium
+            args: --project=chromium-tablet --project=chromium-landscape
+          - name: chromium-small
+            browser: chromium
+            args: --project=chromium-small
+          - name: webkit-desktop
             browser: webkit
-            args: --project=webkit-desktop --project=webkit-mobile
+            args: --project=webkit-desktop
+          - name: webkit-mobile
+            browser: webkit
+            args: --project=webkit-mobile
           - name: firefox
             browser: firefox
             args: --project=firefox-desktop
