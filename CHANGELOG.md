@@ -15,8 +15,9 @@ All notable changes to this project are documented here.
 
 ### Changed
 
-- **`worker/index.ts`**: allowed `https://*.ingest.us.sentry.io` and `https://*.ingest.sentry.io` in `CSP_REPORT_ONLY` `connect-src`.
+- **`worker/index.ts`**: allowed `https://*.ingest.us.sentry.io` and `https://*.ingest.sentry.io` in `CSP_REPORT_ONLY` `connect-src`, and set `dataCollection.urlQueryParams: false`.
 - **`playwright.config.ts`**: explicitly clears `VITE_SENTRY_DSN` in test server builds so Playwright runs never emit events to Sentry.
+- **Playwright & CI performance**: enabled `reducedMotion: 'reduce'` in non-motion flow/a11y/regression/result-card tests, removed redundant quiz/results setups in `tests/flows.spec.ts` and `tests/design-options.spec.ts`, toggled light/dark inside a single drawer session in `tests/a11y.spec.ts`, and split `.github/workflows/ci.yml` E2E matrix jobs per project (keeping `workers: 3`).
 - **`PRIVACY.md` & `README.md`**: documented optional Sentry error/trace telemetry and environment variables.
 
 ## [1.14.2] — Code audit fixes and dependency updates
