@@ -24,6 +24,7 @@ test.describe('command menu → search', () => {
 test.describe('dialog stacking', () => {
   test('"?" does not open shortcut help over the compare dialog or a detail sheet', async ({ page, mock }) => {
     void mock;
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/');
     await completeQuiz(page);
     await toResults(page);
@@ -143,6 +144,7 @@ test.describe('Compare with before + hero canvas', () => {
 test.describe('rating a result', () => {
   test('the title you just rated stays on screen (filled stars) after the grid re-curates', async ({ page, mock }) => {
     void mock;
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/');
     await completeQuiz(page);
     await toResults(page);
