@@ -55,7 +55,11 @@ test.describe('preferences', () => {
     await expect(html(page)).toHaveAttribute('data-card-type', 'editorial');
     await expect(html(page)).toHaveAttribute('data-design-style', 'neon-noir');
     await expect(html(page)).toHaveAttribute('data-search-type', 'expanded');
-    await page.waitForTimeout(500);
+    await expect.poll(() => page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? '{}'), KEY)).toMatchObject({
+      cardType: 'editorial',
+      designStyle: 'neon-noir',
+      searchType: 'expanded',
+    });
     await page.reload();
     await expect(html(page)).toHaveAttribute('data-card-type', 'editorial');
     await expect(html(page)).toHaveAttribute('data-design-style', 'neon-noir');
@@ -326,10 +330,17 @@ test.describe('result cards', () => {
   test('every card type × layout keeps its actions reachable and never overflows', async ({ page, mock }) => {
     void mock;
     test.setTimeout(180_000);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await seed(page, {});
     await page.goto('/');
     await completeQuiz(page);
     await toResults(page);
+    await expect(page.locator('.result-card .result-open').first()).toHaveAttribute('tabindex', '-1');
+    for (const style of ['cinematic', 'minimal', 'film-journal', 'glass', 'neon-noir']) {
+      await page.evaluate((s) => document.documentElement.setAttribute('data-design-style', s), style);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), style).toBe(true);
+    }
+    await page.evaluate(() => document.documentElement.setAttribute('data-design-style', 'cinematic'));
     for (const width of [1280, 390]) {
       await page.setViewportSize({ width, height: 900 });
       for (const type of ['interactive', 'poster', 'editorial', 'compact']) {
@@ -367,6 +378,7 @@ test.describe('result cards', () => {
   test('keyboard focus reveals the quick actions; Details opens the same sheet as the title', async ({ page, mock, isMobile }) => {
     test.skip(isMobile || (page.viewportSize()?.width ?? 1000) < 640, 'touch devices show the quick actions at rest');
     void mock;
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await seed(page, {});
     await page.goto('/');
     await completeQuiz(page);
@@ -381,18 +393,9 @@ test.describe('result cards', () => {
     await expect(page.locator('.modal-card')).toBeVisible();
   });
 
-  test('the poster-wide target is not a tab stop', async ({ page, mock }) => {
-    void mock;
-    await seed(page, {});
-    await page.goto('/');
-    await completeQuiz(page);
-    await toResults(page);
-    await expect(page.locator('.result-card .result-open').first()).toHaveAttribute('tabindex', '-1');
-  });
-
   test('touch: quick actions are visible without hover', async ({ browser, browserName }) => {
     test.skip(browserName === 'firefox', 'Playwright does not support isMobile contexts in Firefox');
-    const ctx = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 800 } });
+    const ctx = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 800 }, reducedMotion: 'reduce' });
     const page = await ctx.newPage();
     const { mockTmdb } = await import('./fixtures');
     await mockTmdb(page);
@@ -419,18 +422,5 @@ test.describe('result cards', () => {
     const opaque = await bg();
     expect(translucent).not.toBe(opaque);
     expect(opaque).not.toMatch(/rgba\(.*,\s*0\.\d+\)$/);
-  });
-
-  test('every design style renders the results without overflow', async ({ page, mock }) => {
-    void mock;
-    test.setTimeout(120_000);
-    await seed(page, {});
-    await page.goto('/');
-    await completeQuiz(page);
-    await toResults(page);
-    for (const style of ['cinematic', 'minimal', 'film-journal', 'glass', 'neon-noir']) {
-      await page.evaluate((s) => document.documentElement.setAttribute('data-design-style', s), style);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), style).toBe(true);
-    }
   });
 });

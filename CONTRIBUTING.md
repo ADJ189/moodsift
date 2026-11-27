@@ -58,13 +58,12 @@ For a change that touches layout or a browser API, also run the wider
 matrix — it is slower but catches engine-specific regressions:
 
 ```bash
-npm run test:devices   # tablet, 320px, landscape, WebKit/Firefox mobile
-npm run test:engines   # WebKit and Firefox, desktop + mobile
-npm run test:matrix    # all nine projects (the release check)
+npm run test:devices   # tablet, 320px, landscape, WebKit mobile
+npm run test:engines   # WebKit (desktop + mobile) and Firefox desktop
+npm run test:matrix    # unit + all eight browser/device projects (the release check)
 ```
 
-Run `npm run test:install` once to download Chromium for Playwright;
-the wider matrix needs `npx playwright install chromium firefox webkit`.
+Run `npm run test:install` once to download Chromium, Firefox, and WebKit for Playwright.
 Every Playwright command is pinned to **three workers**. Don't raise it:
 the tests drive real multi-screen flows against one shared preview server,
 so more workers measure the host, not the app.

@@ -63,9 +63,34 @@ jobs:
         run: npx lhci autorun
 
   e2e:
-    name: End-to-end & accessibility tests
+    name: End-to-end & accessibility (${{ matrix.name }})
     needs: lint-and-build
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: chromium-desktop
+            browser: chromium
+            args: --project=unit --project=chromium-desktop
+          - name: chromium-mobile
+            browser: chromium
+            args: --project=chromium-mobile
+          - name: chromium-tablet-landscape
+            browser: chromium
+            args: --project=chromium-tablet --project=chromium-landscape
+          - name: chromium-small
+            browser: chromium
+            args: --project=chromium-small
+          - name: webkit-desktop
+            browser: webkit
+            args: --project=webkit-desktop
+          - name: webkit-mobile
+            browser: webkit
+            args: --project=webkit-mobile
+          - name: firefox
+            browser: firefox
+            args: --project=firefox-desktop
     steps:
       - uses: actions/checkout@v7
 
@@ -76,18 +101,18 @@ jobs:
 
       - run: npm ci
 
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install Playwright (${{ matrix.browser }})
+        run: npx playwright install --with-deps ${{ matrix.browser }}
 
       # Builds with a dummy TMDB key and mocks every TMDB response, so the
       # suite is deterministic and never calls the live API.
-      - name: Run Playwright tests
-        run: npm test
+      - name: Run Playwright tests (${{ matrix.name }})
+        run: npx playwright test --workers=3 ${{ matrix.args }}
 
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.name }}
           path: |
             playwright-report
             test-results

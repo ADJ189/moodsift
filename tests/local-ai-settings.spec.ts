@@ -102,6 +102,7 @@ test.describe('local AI engine settings', () => {
       },
       [KEY]
     );
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/');
     await completeQuiz(page);
     await toResults(page);
@@ -118,6 +119,7 @@ test.describe('local AI engine settings', () => {
 
   test('a model that cannot load leaves the rule-based reasons in place', async ({ page, mock }) => {
     void mock;
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.route(MODEL_HOSTS, (r) => r.abort());
     await page.goto('/');
     await completeQuiz(page);

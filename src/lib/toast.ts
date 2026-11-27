@@ -17,13 +17,19 @@ function ensureHost(): HTMLElement {
 export interface ToastOptions {
   /** Optional action button, e.g. Undo. */
   action?: { label: string; run: () => void };
-  /** ms before auto-dismiss (default 3200; actions get a little longer). */
+  /** ms before auto-dismiss (default 3200; actions get 8000). */
   duration?: number;
 }
 
 export function showToast(message: string, opts: ToastOptions = {}): void {
   const h = ensureHost();
-  if (timer !== null) window.clearTimeout(timer);
+  if (timer !== null) {
+    window.clearTimeout(timer);
+    timer = null;
+  }
+
+  let dismissed = false;
+  const duration = opts.duration ?? (opts.action ? 8000 : 3200);
 
   const children: (Node | string)[] = [el('span', { class: 'toast-msg' }, [message])];
   if (opts.action) {
@@ -44,10 +50,35 @@ export function showToast(message: string, opts: ToastOptions = {}): void {
     );
   }
   const toast = el('div', { class: 'toast' }, children);
+
+  const startTimer = () => {
+    if (dismissed) return;
+    if (timer !== null) window.clearTimeout(timer);
+    timer = window.setTimeout(dismiss, duration);
+  };
+  const pauseTimer = () => {
+    if (timer !== null) {
+      window.clearTimeout(timer);
+      timer = null;
+    }
+  };
+
+  // Pause auto-dismiss while the user is hovering or keyboard-focusing the toast
+  // so an Undo button never disappears out from under them.
+  toast.addEventListener('pointerenter', pauseTimer);
+  toast.addEventListener('pointerleave', () => {
+    if (!toast.contains(document.activeElement)) startTimer();
+  });
+  toast.addEventListener('focusin', pauseTimer);
+  toast.addEventListener('focusout', () => {
+    if (!toast.contains(document.activeElement)) startTimer();
+  });
+
   h.replaceChildren(toast);
-  timer = window.setTimeout(dismiss, opts.duration ?? (opts.action ? 5200 : 3200));
+  startTimer();
 
   function dismiss() {
+    dismissed = true;
     if (timer !== null) window.clearTimeout(timer);
     timer = null;
     if (h.firstChild === toast) h.replaceChildren();

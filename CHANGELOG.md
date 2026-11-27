@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Added
+
+- **Sentry error, trace, log, and Session Replay monitoring** across both the Vite browser frontend (`src/lib/sentry.ts`, `src/lib/sentry-privacy.ts`, `@sentry/browser`) and the Cloudflare Worker (`worker/index.ts`, `@sentry/cloudflare`), configured via `VITE_SENTRY_DSN` and `SENTRY_DSN` with `dataCollection: { userInfo: false, urlQueryParams: false }`, DOM/fetch/XHR breadcrumbs disabled, Replay `ui.*` breadcrumbs dropped, third-party API query strings scrubbed, and same-origin `tracePropagationTargets`.
+- **Source map upload support** in `vite.config.ts` (`@sentry/bundler-plugins/vite`, enabled when `SENTRY_AUTH_TOKEN` is set during production builds), `scripts/sentry-worker-sourcemaps.mjs` (`worker:sourcemaps` / `worker:sourcemaps:check` / `deploy` scripts in `package.json`), and `wrangler.jsonc` (`upload_source_maps: true`, `nodejs_compat`, `CF_VERSION_METADATA` binding).
+
+### Fixed
+
+- **`src/lib/toast.ts`**: increased default auto-dismiss duration for action toasts (e.g. Undo) from `5200` ms to `8000` ms and paused dismissal while hovering or focusing the toast, preventing `webkit-desktop` CI runs of `tests/regressions.spec.ts` ("toast undo clears a custom accent chosen after a preset") from auto-dismissing the toast before `Undo` is clicked.
+
+### Changed
+
+- **`worker/index.ts`**: allowed `https://*.ingest.us.sentry.io` and `https://*.ingest.sentry.io` in `CSP_REPORT_ONLY` `connect-src`, and set `dataCollection.urlQueryParams: false`.
+- **`playwright.config.ts`**: explicitly clears `VITE_SENTRY_DSN` in test server builds so Playwright runs never emit events to Sentry.
+- **Playwright & CI performance**: enabled `reducedMotion: 'reduce'` in non-motion flow/a11y/regression/result-card tests, removed redundant quiz/results setups in `tests/flows.spec.ts` and `tests/design-options.spec.ts`, toggled light/dark inside a single drawer session in `tests/a11y.spec.ts`, and split `.github/workflows/ci.yml` E2E matrix jobs per project (keeping `workers: 3`).
+- **`PRIVACY.md` & `README.md`**: documented optional Sentry error/trace telemetry and environment variables.
+
 ## [1.14.2] — Code audit fixes and dependency updates
 
 ### Added

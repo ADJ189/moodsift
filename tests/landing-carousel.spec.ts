@@ -172,11 +172,14 @@ test.describe('landing gallery — data and loading', () => {
     await page.goto('/');
     await expect(page.locator('.lc-skel')).toBeVisible();
     const cta = page.getByRole('button', { name: /find my next watch/i });
-    await page.waitForTimeout(1500); // let the hero's entrance animation finish; we want layout movement only
+    await page.waitForFunction(() => {
+      const els = [...document.querySelectorAll<HTMLElement>('.reveal')];
+      return els.length > 0 && els.every((e) => parseFloat(getComputedStyle(e).opacity) >= 0.99 && e.getAnimations().every((a) => a.playState === 'finished'));
+    }); // let the hero's entrance animation finish; we want layout movement only
     const before = (await cta.boundingBox())!;
     release();
     await expect(page.locator('.lc')).toHaveCount(0);
-    await page.waitForTimeout(400);
+    await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
     const after = (await cta.boundingBox())!;
     expect(Math.abs(after.y - before.y)).toBeLessThanOrEqual(1);
   });

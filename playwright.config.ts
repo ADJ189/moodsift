@@ -5,6 +5,20 @@ import { defineConfig, devices } from '@playwright/test';
 const PORT = 4321;
 const NOKEY_PORT = 4322;
 
+const UNIT_SPECS = [
+  '**/ai-manifest-script.spec.ts',
+  '**/local-ai-diagnostics.spec.ts',
+  '**/local-ai-engine.spec.ts',
+  '**/local-ai-integrity.spec.ts',
+  '**/local-ai-matrix.spec.ts',
+  '**/local-ai-policy.spec.ts',
+  '**/model-proxy.spec.ts',
+  '**/profile-storage.spec.ts',
+  '**/worker-route.spec.ts',
+];
+
+const BROWSER_IGNORE = [/visual\.spec\.ts/, ...UNIT_SPECS];
+
 export default defineConfig({
   testDir: './tests',
   // Playwright's default matches `*.test.ts` too, which would pull in the
@@ -30,19 +44,19 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   projects: [
+    // Pure Node/JS specs (no browser needed; run once instead of per-engine).
+    { name: 'unit', testMatch: UNIT_SPECS },
     // Fast gate (npm test): the two original Chromium projects.
-    { name: 'chromium-desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } } },
-    { name: 'chromium-mobile', use: { ...devices['Pixel 7'] }, testIgnore: /visual\.spec\.ts/ },
+    { name: 'chromium-desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } }, testIgnore: UNIT_SPECS },
+    { name: 'chromium-mobile', use: { ...devices['Pixel 7'] }, testIgnore: BROWSER_IGNORE },
     // Device matrix (npm run test:devices): layout extremes, tablets, landscape.
-    { name: 'chromium-tablet', use: { ...devices['iPad Mini'], defaultBrowserType: 'chromium' }, testIgnore: /visual\.spec\.ts/ },
-    { name: 'chromium-small', use: { ...devices['Desktop Chrome'], viewport: { width: 320, height: 640 }, hasTouch: true }, testIgnore: /visual\.spec\.ts/ },
-    { name: 'chromium-landscape', use: { ...devices['Pixel 7 landscape'] }, testIgnore: /visual\.spec\.ts/ },
+    { name: 'chromium-tablet', use: { ...devices['iPad Mini'], defaultBrowserType: 'chromium' }, testIgnore: BROWSER_IGNORE },
+    { name: 'chromium-small', use: { ...devices['Desktop Chrome'], viewport: { width: 320, height: 640 }, hasTouch: true }, testIgnore: BROWSER_IGNORE },
+    { name: 'chromium-landscape', use: { ...devices['Pixel 7 landscape'] }, testIgnore: BROWSER_IGNORE },
     // Engine matrix (npm run test:engines): the renderers users actually have.
-    { name: 'webkit-desktop', use: { ...devices['Desktop Safari'], viewport: { width: 1280, height: 800 } }, testIgnore: /visual\.spec\.ts/ },
-    { name: 'webkit-mobile', use: { ...devices['iPhone 15'] }, testIgnore: /visual\.spec\.ts/ },
-    { name: 'firefox-desktop', use: { ...devices['Desktop Firefox'], viewport: { width: 1440, height: 900 } }, testIgnore: /visual\.spec\.ts/ },
-    // Firefox does not support `isMobile`; emulate the small screen without it.
-    { name: 'firefox-mobile', use: { ...devices['Desktop Firefox'], viewport: { width: 390, height: 844 }, hasTouch: true }, testIgnore: /visual\.spec\.ts/ },
+    { name: 'webkit-desktop', use: { ...devices['Desktop Safari'], viewport: { width: 1280, height: 800 } }, testIgnore: BROWSER_IGNORE },
+    { name: 'webkit-mobile', use: { ...devices['iPhone 15'] }, testIgnore: BROWSER_IGNORE },
+    { name: 'firefox-desktop', use: { ...devices['Desktop Firefox'], viewport: { width: 1440, height: 900 } }, testIgnore: BROWSER_IGNORE },
   ],
   webServer: [
     {
@@ -50,7 +64,7 @@ export default defineConfig({
       url: `http://localhost:${PORT}`,
       // Cross-platform: Playwright's env field works on Windows cmd,
       // PowerShell, macOS and Linux; `VAR=value cmd` does not.
-      env: { VITE_TMDB_KEY: 'test-fixture-key' },
+      env: { VITE_TMDB_KEY: 'test-fixture-key', VITE_SENTRY_DSN: '' },
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },
@@ -59,7 +73,7 @@ export default defineConfig({
       // static sample visual" case. The empty vars win over any local .env.
       command: `npx vite build --outDir dist-e2e-nokey --emptyOutDir && npx vite preview --outDir dist-e2e-nokey --port ${NOKEY_PORT} --strictPort`,
       url: `http://localhost:${NOKEY_PORT}`,
-      env: { VITE_TMDB_KEY: '', VITE_TMDB_TOKEN: '' },
+      env: { VITE_TMDB_KEY: '', VITE_TMDB_TOKEN: '', VITE_SENTRY_DSN: '' },
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },

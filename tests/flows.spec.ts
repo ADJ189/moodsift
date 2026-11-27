@@ -29,8 +29,6 @@ test.describe('core flow', () => {
   test('movie and TV titles with the same TMDB id never collide', async ({ page, mock }) => {
     void mock;
     await page.goto('/');
-    await completeQuiz(page);
-    await toResults(page);
     // rate + save two titles that share an id but differ in media type, via the profile API surface
     // Inject as a LEGACY plain-JSON profile (and drop the v2 record) so the
     // app's v1 → v2 migration path is what ingests it on reload.
@@ -47,6 +45,7 @@ test.describe('core flow', () => {
 
   test('watchlist toggle confirms with a toast and is type-aware', async ({ page, mock }) => {
     void mock;
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/');
     await completeQuiz(page);
     await toResults(page);
@@ -59,17 +58,18 @@ test.describe('core flow', () => {
 
   test('"Who’s watching" changes what is recommended', async ({ page, mock }) => {
     void mock;
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     const titlesFor = async (optionIndex: number) => {
       await page.goto('/');
       await page.evaluate(() => localStorage.clear());
       await page.reload();
       await page.getByRole('button', { name: /find my next watch/i }).click();
       for (let i = 0; i < 7; i++) {
+        await expect(page.locator('.quiz-step-label')).toContainText(`Question ${i + 1} of 7`);
         const opts = page.locator('.quiz-option');
         await opts.first().waitFor();
         // the last question is "Who's watching?": solo = 0, family = last
         await opts.nth(i === 6 ? optionIndex : 0).click();
-        await page.waitForTimeout(450);
       }
       await page.locator('.rating-grid').waitFor();
       await toResults(page);
@@ -137,6 +137,7 @@ test.describe('library re-import', () => {
   const imported = async (page: import('@playwright/test').Page) => (await history(page)).history.filter((h) => h.source === 'import').map((h) => h.title).sort();
 
   test('a smaller clean re-import replaces the old library; failed lookups never erase it', async ({ page, mock }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/');
     await completeQuiz(page);
     await importCsv(page, [['Alpha', 2001, 4], ['Beta', 2002, 3], ['Gamma', 2003, 5]]);
@@ -154,6 +155,7 @@ test.describe('library re-import', () => {
 
   test('ratings given in the app survive any re-import', async ({ page, mock }) => {
     void mock;
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/');
     await completeQuiz(page);
     await rateCards(page, 2);
@@ -167,6 +169,7 @@ test.describe('library re-import', () => {
 test.describe('compare', () => {
   test('select two, compare, remove, clear — with keyboard and announcements', async ({ page, mock }) => {
     void mock;
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/');
     await completeQuiz(page);
     await toResults(page);
@@ -200,6 +203,7 @@ test.describe('compare', () => {
 
   test('selection is cleared and the tray removed when leaving results', async ({ page, mock }) => {
     void mock;
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/');
     await completeQuiz(page);
     await toResults(page);

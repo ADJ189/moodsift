@@ -38,7 +38,7 @@ async function overflowOffenders(page: import('@playwright/test').Page): Promise
 }
 
 async function expectNoOverflow(page: import('@playwright/test').Page, label: string): Promise<void> {
-  await page.waitForTimeout(150);
+  await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
   const overflow = await horizontalOverflow(page);
   const detail = overflow > 1 ? ` by ${overflow}px; offenders: ${JSON.stringify(await overflowOffenders(page))}` : '';
   expect(overflow, `${label}: horizontal overflow${detail}`).toBeLessThanOrEqual(1);
