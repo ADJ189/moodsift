@@ -89,6 +89,9 @@ Deno.test('scrubThirdPartyQueryUrls and sanitizeErrorEvent strip TMDB/OMDb query
     scrubThirdPartyQueryUrls('TMDB 500: https://api.themoviedb.org/3/search/multi?query=Barbie&api_key=abc'),
     'TMDB 500: https://api.themoviedb.org/3/search/multi'
   );
+  // Ensure repeated '?' / '#' characters stay linear-time and strip cleanly
+  const repeated = 'https://api.themoviedb.org/3/search/multi' + '?'.repeat(5000);
+  assertEquals(scrubThirdPartyQueryUrls(repeated), 'https://api.themoviedb.org/3/search/multi');
   assertEquals(
     sanitizeErrorEvent({
       message: 'Failed https://www.omdbapi.com/?apikey=123&t=Barbie&y=2023',
