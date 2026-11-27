@@ -8,6 +8,14 @@ const THIRD_PARTY_API_URL_RE = /https?:\/\/(?:api\.themoviedb\.org|www\.omdbapi\
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
+/** Linear-time query/fragment stripper (avoids regex backtracking on repeated `?`/`#`). */
+function stripQueryAndFragment(url: string): string {
+  const q = url.indexOf('?');
+  const h = url.indexOf('#');
+  const cut = q === -1 ? h : h === -1 ? q : Math.min(q, h);
+  return cut === -1 ? url : url.slice(0, cut);
+}
+
 /** Strips query strings and fragments from TMDB/OMDb URLs inside arbitrary text. */
 export function scrubThirdPartyQueryUrls(text: string): string {
   return text.replace(THIRD_PARTY_API_URL_RE, (raw) => {
@@ -18,7 +26,7 @@ export function scrubThirdPartyQueryUrls(text: string): string {
       u.hash = '';
       return u.toString();
     } catch {
-      return raw.replace(/[?#].*$/, '');
+      return stripQueryAndFragment(raw);
     }
   });
 }
@@ -37,7 +45,7 @@ export function sanitizeBreadcrumb<T extends SanitizeBreadcrumbInput>(breadcrumb
     const nextData: Record<string, unknown> = { ...breadcrumb.data };
     for (const key of ['from', 'to'] as const) {
       const val = nextData[key];
-      if (typeof val === 'string') nextData[key] = val.replace(/[?#].*$/, '');
+      if (typeof val === 'string') nextData[key] = stripQueryAndFragment(val);
     }
     return { ...breadcrumb, data: nextData };
   }
@@ -65,7 +73,7 @@ export function sanitizeReplayEvent<T extends SanitizeReplayEventInput>(event: T
     (payload.op === 'resource.fetch' || payload.op === 'resource.xhr') &&
     typeof payload.description === 'string'
   ) {
-    const scrubbed = payload.description.replace(/[?#].*$/, '');
+    const scrubbed = stripQueryAndFragment(payload.description);
     if (scrubbed !== payload.description) {
       return {
         ...event,
