@@ -186,6 +186,7 @@ export default Sentry.withSentry(
       tracesSampleRate: parseSampleRate(env.SENTRY_TRACES_SAMPLE_RATE, isDev ? 1.0 : 0.1),
       dataCollection: {
         userInfo: false,
+        urlQueryParams: false,
       },
     };
   },
