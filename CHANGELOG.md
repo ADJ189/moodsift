@@ -6,8 +6,12 @@ All notable changes to this project are documented here.
 
 ### Added
 
-- **Sentry error, trace, log, and Session Replay monitoring** across both the Vite browser frontend (`src/lib/sentry.ts`, `@sentry/browser`) and the Cloudflare Worker (`worker/index.ts`, `@sentry/cloudflare`), configured via `VITE_SENTRY_DSN` and `SENTRY_DSN` with `dataCollection.userInfo: false` and same-origin `tracePropagationTargets`.
+- **Sentry error, trace, log, and Session Replay monitoring** across both the Vite browser frontend (`src/lib/sentry.ts`, `src/lib/sentry-privacy.ts`, `@sentry/browser`) and the Cloudflare Worker (`worker/index.ts`, `@sentry/cloudflare`), configured via `VITE_SENTRY_DSN` and `SENTRY_DSN` with `dataCollection: { userInfo: false, urlQueryParams: false }`, DOM/fetch/XHR breadcrumbs disabled, Replay `ui.*` breadcrumbs dropped, third-party API query strings scrubbed, and same-origin `tracePropagationTargets`.
 - **Source map upload support** in `vite.config.ts` (`@sentry/bundler-plugins/vite`, enabled when `SENTRY_AUTH_TOKEN` is set during production builds), `scripts/sentry-worker-sourcemaps.mjs` (`worker:sourcemaps` / `worker:sourcemaps:check` / `deploy` scripts in `package.json`), and `wrangler.jsonc` (`upload_source_maps: true`, `nodejs_compat`, `CF_VERSION_METADATA` binding).
+
+### Fixed
+
+- **`src/lib/toast.ts`**: increased default auto-dismiss duration for action toasts (e.g. Undo) from `5200` ms to `8000` ms and paused dismissal while hovering or focusing the toast, preventing `webkit-desktop` CI runs of `tests/regressions.spec.ts` ("toast undo clears a custom accent chosen after a preset") from auto-dismissing the toast before `Undo` is clicked.
 
 ### Changed
 

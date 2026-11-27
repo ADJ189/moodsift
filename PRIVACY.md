@@ -96,11 +96,14 @@ rather than pretending otherwise.
 - **Sentry** (`*.ingest.us.sentry.io`) — optional error, trace, log, and
   Session Replay monitoring when a DSN is configured (`VITE_SENTRY_DSN` for the
   browser app, `SENTRY_DSN` for the Cloudflare Worker). Both SDKs set
-  `dataCollection: { userInfo: false }`, Session Replay masks text and blocks
-  media by default, and trace headers are limited to same-origin requests.
-  Stored ratings, watchlists, quiz answers, and local profile data are never
-  sent to Sentry; Sentry's own [privacy policy](https://sentry.io/privacy/)
-  governs ingested telemetry.
+  `dataCollection: { userInfo: false, urlQueryParams: false }`; the browser SDK
+  also disables DOM (`ui.*`), `fetch`, and `xhr` breadcrumbs, drops `ui.*`
+  breadcrumbs from Session Replay, and strips query strings from TMDB/OMDb URLs
+  in replay network spans and error messages. Session Replay masks text and
+  blocks media by default, and trace headers are limited to same-origin
+  requests. Stored ratings, watchlists, quiz answers, search queries, and local
+  profile data are never sent to Sentry; Sentry's own
+  [privacy policy](https://sentry.io/privacy/) governs ingested telemetry.
 - **Hosting** — the app itself is served by Cloudflare Workers; loading
   any page necessarily exposes your IP address to Cloudflare's edge
   network, the same as any website.

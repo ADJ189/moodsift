@@ -263,6 +263,7 @@ src/
     ai-diagnostics.ts, ai-diagnostics-ui.ts   "Test on this device" — pure report/classification logic, and its UI
     app-version.ts   app version string for diagnostic reports (must match package.json)
     sentry.ts        optional browser-side Sentry SDK init (inactive when VITE_SENTRY_DSN is unset)
+    sentry-privacy.ts  pure Sentry breadcrumb, replay, and error URL scrubbers
   screens/           landing, quiz, rating, results, search — one module each, lazily loaded except landing
   components/        landing-carousel.ts — the landing page's popular-titles gallery (Pointer Events + CSS transforms)
   data/              quiz questions, taste-calibration seed titles, ai-manifest.json (pinned model files + checksums)
